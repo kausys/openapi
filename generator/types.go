@@ -107,3 +107,29 @@ func ClearCustomTypes() {
 
 	customTypes = make(map[string]*TypeInfo)
 }
+
+// ResetToDefaults clears all custom types and re-registers the defaults.
+// Useful for testing.
+func ResetToDefaults() {
+	ClearCustomTypes()
+	registerDefaults()
+}
+
+// registerDefaults registers the default custom types.
+func registerDefaults() {
+	// uuid.UUID
+	RegisterType("uuid.UUID", func(info *TypeInfo) {
+		info.Type = "string"
+		info.Format = "uuid"
+	})
+
+	// time.Time
+	RegisterType("time.Time", func(info *TypeInfo) {
+		info.Type = "string"
+		info.Format = "date-time"
+	})
+}
+
+func init() {
+	registerDefaults()
+}

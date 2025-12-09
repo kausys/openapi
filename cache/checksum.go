@@ -15,7 +15,7 @@ func CalculateChecksum(filePath string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("opening file: %w", err)
 	}
-	defer func() { _ = file.Close() }()
+	defer file.Close()
 
 	hash := sha256.New()
 	if _, err := io.Copy(hash, file); err != nil {
