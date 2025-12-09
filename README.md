@@ -15,6 +15,7 @@ Generate **OpenAPI 3.0.4** specifications from Go source code using swagger-styl
 - 📦 **Multi-Spec Generation** - Generate multiple API specs from a single codebase
 - ⚡ **Incremental Caching** - Only re-process changed files
 - 🧹 **Smart Schema Cleaning** - Only include schemas used by each spec
+- 🎨 **Swagger UI Integration** - Download and serve Swagger UI with multi-spec support
 - 🛠️ **Powerful CLI** - Easy-to-use command-line interface
 
 ## 📦 Installation
@@ -146,6 +147,144 @@ Flags:
       --spec string      Generate only a specific spec by name
       --clean-unused     Remove unreferenced schemas
       --validate         Validate the generated spec
+```
+
+## 🎨 Swagger UI Integration
+
+The `swagger` package provides everything you need to serve Swagger UI with your OpenAPI specs.
+
+### Download Swagger UI
+
+Use the CLI to download the latest Swagger UI release from GitHub:
+
+```bash
+# Check latest available version
+openapi swagger version
+
+# Download latest version with default customizations
+openapi swagger download -o ./pkg/docs
+
+# Download specific version
+openapi swagger download -v 5.29.4 -o ./pkg/docs
+
+# Download with simple single-spec initializer
+openapi swagger download --simple -o ./pkg/docs
+
+# Download without customizations
+openapi swagger download --with-defaults=false -o ./pkg/docs
+```
+
+The download command automatically:
+- Fetches the latest release from GitHub API
+- Extracts only the `dist/` folder
+- Removes source maps and ES module bundles
+- Injects custom initializer for multi-spec support
+- Adds custom CSS to hide Swagger branding
+
+### Serve Swagger UI in Your Application
+
+```go
+package docs
+
+import (
+    _ "embed"
+    "net/http"
+
+    "github.com/kausys/openapi/swagger"
+)
+
+//go:embed swagger-ui.zip
+var swaggerUIData []byte
+
+//go:embed openapi.yaml
+var specData []byte
+
+func NewHandler() (*swagger.Handler, error) {
+    return swagger.New(swaggerUIData, swagger.Config{
+        BasePath:      "/swagger",      // Swagger UI served here
+        SpecPath:      "/openapi/specs", // OpenAPI spec endpoint
+        ResourcesPath: "/openapi/resources", // Multi-spec dropdown
+        Specs: map[string][]byte{
+            "api": specData,
+        },
+        DefaultSpec: "api",
+    })
+}
+```
+
+### Framework Integration
+
+**Standard Library / Chi / Echo:**
+```go
+handler, _ := docs.NewHandler()
+http.Handle("/swagger/", handler)
+http.HandleFunc("/openapi/specs", handler.ServeHTTP)
+http.HandleFunc("/openapi/resources", handler.ServeHTTP)
+
+// Or register all routes at once:
+mux := http.NewServeMux()
+handler.Routes(mux)
+```
+
+**Gin:**
+```go
+handler, _ := docs.NewHandler()
+router := gin.Default()
+router.Any("/swagger/*any", gin.WrapH(handler))
+router.GET("/openapi/specs", gin.WrapH(handler))
+router.GET("/openapi/resources", gin.WrapH(handler))
+```
+
+**Fiber:**
+```go
+import "github.com/gofiber/adaptor/v2"
+
+handler, _ := docs.NewHandler()
+app := fiber.New()
+app.Use("/swagger", adaptor.HTTPHandler(handler))
+app.Get("/openapi/specs", adaptor.HTTPHandlerFunc(handler.ServeHTTP))
+app.Get("/openapi/resources", adaptor.HTTPHandlerFunc(handler.ServeHTTP))
+```
+
+### Multi-Spec Support
+
+Serve multiple API specs with a dropdown selector:
+
+```go
+handler, _ := swagger.New(swaggerUIData, swagger.Config{
+    Specs: map[string][]byte{
+        "public": publicSpecData,
+        "admin":  adminSpecData,
+        "mobile": mobileSpecData,
+    },
+    DefaultSpec: "public",
+})
+```
+
+The Swagger UI will display a dropdown allowing users to switch between specs.
+
+### Configuration Options
+
+| Option | Description | Default |
+|--------|-------------|---------|
+| `BasePath` | URL path for Swagger UI | `/swagger` |
+| `SpecPath` | URL path for OpenAPI specs | `/openapi/specs` |
+| `ResourcesPath` | URL path for spec list (multi-spec dropdown) | `/openapi/resources` |
+| `Specs` | Map of spec name to YAML/JSON bytes | required |
+| `DefaultSpec` | Default spec when no query param | first spec |
+
+### go:generate Integration
+
+Add to your docs package for automatic spec generation:
+
+```go
+//go:generate openapi generate -d ../.. -p ./... -o openapi.yaml --clean-unused
+package docs
+```
+
+Then run:
+```bash
+go generate ./pkg/docs
 ```
 
 ## 🔌 Extensible Parser System
