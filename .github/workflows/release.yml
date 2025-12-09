@@ -29,5 +29,5 @@ jobs:
           version: latest
           args: release --clean
         env:
-          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
 
