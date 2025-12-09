@@ -98,20 +98,29 @@ func processStructFields(structInfo *StructInfo, structType *ast.StructType) {
 		return
 	}
 
+	index := 0
 	for _, field := range structType.Fields.List {
 		// Check if this is an embedded field (no names)
 		if len(field.Names) == 0 {
 			embeddedType := extractTypeName(field.Type)
 			if embeddedType != "" {
 				structInfo.EmbeddedTypes = append(structInfo.EmbeddedTypes, embeddedType)
+				structInfo.EmbeddedTypeInfos = append(structInfo.EmbeddedTypeInfos, &EmbeddedTypeInfo{
+					Name:  embeddedType,
+					Index: index,
+				})
 			}
+			index++
 			continue
 		}
 
 		fieldInfo := parseField(field)
 		if fieldInfo != nil {
+			// Multiply by 1000 to leave room for embedded field sub-indices
+			fieldInfo.Index = index * 1000
 			structInfo.Fields = append(structInfo.Fields, fieldInfo)
 		}
+		index++
 	}
 }
 

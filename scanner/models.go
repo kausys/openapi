@@ -85,19 +85,26 @@ type EnumInfo struct {
 	SourceFile  string
 }
 
+// EmbeddedTypeInfo contains information about an embedded type with its position.
+type EmbeddedTypeInfo struct {
+	Name  string // Type name (e.g., "pagination.Pagination")
+	Index int    // Position in the struct where it was declared
+}
+
 // StructInfo contains information about a struct marked as model or parameters.
 type StructInfo struct {
-	Name          string
-	Fields        []*FieldInfo
-	EmbeddedTypes []string // Embedded types that need to be resolved (e.g., "pagination.Pagination")
-	Description   string
-	IsParameter   bool
-	IsModel       bool
-	SourceFile    string
-	OneOf         []string
-	AllOf         []string
-	AnyOf         []string
-	Specs         []string // Multi-spec: which specs this model belongs to (empty = all specs)
+	Name              string
+	Fields            []*FieldInfo
+	EmbeddedTypes     []string            // Embedded types that need to be resolved (e.g., "pagination.Pagination")
+	EmbeddedTypeInfos []*EmbeddedTypeInfo // Embedded types with position information
+	Description       string
+	IsParameter       bool
+	IsModel           bool
+	SourceFile        string
+	OneOf             []string
+	AllOf             []string
+	AnyOf             []string
+	Specs             []string // Multi-spec: which specs this model belongs to (empty = all specs)
 }
 
 // FieldInfo contains information about a struct field.
@@ -123,6 +130,7 @@ type FieldInfo struct {
 	HasOmitempty     bool
 	ExplicitRequired bool
 	ExplicitOptional bool
+	Index            int // Position in the original struct declaration (for ordering)
 }
 
 // RouteInfo contains information about an API route/endpoint.

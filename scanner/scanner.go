@@ -4,6 +4,7 @@ import (
 	"go/ast"
 	"go/token"
 	"go/types"
+	"sort"
 
 	"golang.org/x/tools/go/packages"
 )
@@ -57,6 +58,7 @@ type Scanner struct {
 	// Type mappings
 	TypeToEnum   map[string]string // Go type name -> enum name
 	TypeToStruct map[string]string // Go type name -> struct name
+	TypeAliases  map[string]string // alias type name -> original type name (e.g., "model.FeeType" -> "workspace.FeeType")
 
 	// Source file mappings
 	EnumSources   map[string]string // enum name -> source file
@@ -90,6 +92,7 @@ func New(options ...Option) *Scanner {
 		Routes:        make(map[string]*RouteInfo),
 		TypeToEnum:    make(map[string]string),
 		TypeToStruct:  make(map[string]string),
+		TypeAliases:   make(map[string]string),
 		EnumSources:   make(map[string]string),
 		StructSources: make(map[string]string),
 		RouteSources:  make(map[string]string),
@@ -212,7 +215,7 @@ func (s *Scanner) ScanFile(filePath string) error {
 }
 
 // processFile processes a single AST file.
-func (s *Scanner) processFile(filePath string, file *ast.File, _ *packages.Package) error {
+func (s *Scanner) processFile(filePath string, file *ast.File, pkg *packages.Package) error {
 	// Process meta information
 	if err := s.processMeta(filePath, file); err != nil {
 		return err
@@ -222,6 +225,9 @@ func (s *Scanner) processFile(filePath string, file *ast.File, _ *packages.Packa
 	if err := s.processEnums(filePath, file); err != nil {
 		return err
 	}
+
+	// Process type aliases (for enum resolution)
+	s.processTypeAliases(filePath, file, pkg)
 
 	// Process schemas (models and parameters)
 	if err := s.processSchemas(filePath, file); err != nil {
@@ -251,22 +257,35 @@ func (s *Scanner) resolveEmbeddedTypesRecursive(structInfo *StructInfo, resolved
 	}
 	resolved[structInfo.Name] = true
 
-	if len(structInfo.EmbeddedTypes) == 0 {
+	if len(structInfo.EmbeddedTypeInfos) == 0 {
 		return
 	}
 
-	for _, embeddedType := range structInfo.EmbeddedTypes {
-		s.resolveEmbeddedType(structInfo, embeddedType, resolved)
+	for _, embeddedInfo := range structInfo.EmbeddedTypeInfos {
+		s.resolveEmbeddedType(structInfo, embeddedInfo, resolved)
 	}
+
+	// Sort fields by index to maintain original declaration order
+	s.sortFieldsByIndex(structInfo)
+}
+
+// sortFieldsByIndex sorts fields by their Index to maintain declaration order.
+func (s *Scanner) sortFieldsByIndex(structInfo *StructInfo) {
+	sort.SliceStable(structInfo.Fields, func(i, j int) bool {
+		return structInfo.Fields[i].Index < structInfo.Fields[j].Index
+	})
 }
 
 // resolveEmbeddedType resolves a single embedded type and adds its fields to the struct.
-func (s *Scanner) resolveEmbeddedType(structInfo *StructInfo, embeddedTypeName string, resolved map[string]bool) {
+func (s *Scanner) resolveEmbeddedType(structInfo *StructInfo, embeddedInfo *EmbeddedTypeInfo, resolved map[string]bool) {
+	embeddedTypeName := embeddedInfo.Name
+	baseIndex := embeddedInfo.Index
+
 	// First, check if it's a known struct in our scanner
 	if embedded, ok := s.Structs[embeddedTypeName]; ok {
 		// Recursively resolve the embedded struct first
 		s.resolveEmbeddedTypesRecursive(embedded, resolved)
-		structInfo.Fields = append(structInfo.Fields, embedded.Fields...)
+		s.addEmbeddedFields(structInfo, embedded.Fields, baseIndex)
 		return
 	}
 
@@ -279,7 +298,7 @@ func (s *Scanner) resolveEmbeddedType(structInfo *StructInfo, embeddedTypeName s
 	if embedded, ok := s.Structs[shortName]; ok {
 		// Recursively resolve the embedded struct first
 		s.resolveEmbeddedTypesRecursive(embedded, resolved)
-		structInfo.Fields = append(structInfo.Fields, embedded.Fields...)
+		s.addEmbeddedFields(structInfo, embedded.Fields, baseIndex)
 		return
 	}
 
@@ -306,7 +325,20 @@ func (s *Scanner) resolveEmbeddedType(structInfo *StructInfo, embeddedTypeName s
 
 	// Extract fields from the types.Struct
 	fields := s.extractFieldsFromTypesStruct(structType)
-	structInfo.Fields = append(structInfo.Fields, fields...)
+	s.addEmbeddedFields(structInfo, fields, baseIndex)
+}
+
+// addEmbeddedFields adds embedded fields with proper index for ordering.
+// Uses fractional indexing (baseIndex + subIndex/1000) to maintain order.
+func (s *Scanner) addEmbeddedFields(structInfo *StructInfo, fields []*FieldInfo, baseIndex int) {
+	for i, field := range fields {
+		// Create a copy of the field to avoid modifying the original
+		fieldCopy := *field
+		// Use fractional index: baseIndex.subIndex (e.g., 0.001, 0.002 for embedded at position 0)
+		// Multiply baseIndex by 1000 and add subIndex to create ordering
+		fieldCopy.Index = baseIndex*1000 + i
+		structInfo.Fields = append(structInfo.Fields, &fieldCopy)
+	}
 }
 
 // extractFieldsFromTypesStruct extracts FieldInfo from a types.Struct.

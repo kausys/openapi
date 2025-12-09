@@ -163,7 +163,17 @@ func (g *Generator) fieldToSchema(f *scanner.FieldInfo) *spec.Schema {
 	// Check if this is a reference type (model or enum)
 	// In OpenAPI 3.0.x, $ref cannot have other properties
 	if g.isReferenceType(f.Type) {
-		return g.typeToSchema(f.Type)
+		schema := g.typeToSchema(f.Type)
+		// For enums, apply field-level overrides (description, example)
+		if schema.Ref == "" && schema.Enum != nil {
+			if f.Description != "" {
+				schema.Description = f.Description
+			}
+			if f.Example != "" {
+				schema.Example = f.Example
+			}
+		}
+		return schema
 	}
 
 	// Handle basic/primitive types
@@ -194,8 +204,8 @@ func (g *Generator) isReferenceType(typeName string) bool {
 	if _, ok := g.scanner.Structs[typeName]; ok {
 		return true
 	}
-	// Check if it's an enum
-	if enumName := g.scanner.TypeToEnum[typeName]; enumName != "" {
+	// Check if it's an enum (using alias resolution)
+	if g.scanner.GetEnumForType(typeName) != nil {
 		return true
 	}
 	// Check for package-qualified types
@@ -251,22 +261,9 @@ func (g *Generator) typeToSchema(typeName string) *spec.Schema {
 		}
 	}
 
-	// Check if it's an enum - generate inline
-	if enumName := g.scanner.TypeToEnum[typeName]; enumName != "" {
-		if enumInfo, exists := g.scanner.Enums[enumName]; exists {
-			return g.createInlineEnumSchema(enumInfo)
-		}
-	}
-
-	// Also check for package-qualified enum types (e.g., "model.Coin")
-	if strings.Contains(typeName, ".") {
-		parts := strings.Split(typeName, ".")
-		shortName := parts[len(parts)-1]
-		if enumName := g.scanner.TypeToEnum[shortName]; enumName != "" {
-			if enumInfo, exists := g.scanner.Enums[enumName]; exists {
-				return g.createInlineEnumSchema(enumInfo)
-			}
-		}
+	// Check if it's an enum - generate inline (using alias resolution)
+	if enumInfo := g.scanner.GetEnumForType(typeName); enumInfo != nil {
+		return g.createInlineEnumSchema(enumInfo)
 	}
 
 	g.setSchemaType(schema, typeName)
@@ -275,7 +272,9 @@ func (g *Generator) typeToSchema(typeName string) *spec.Schema {
 
 // createInlineEnumSchema creates an inline schema for an enum.
 func (g *Generator) createInlineEnumSchema(e *scanner.EnumInfo) *spec.Schema {
-	schema := &spec.Schema{}
+	schema := &spec.Schema{
+		Description: e.Description,
+	}
 	g.setSchemaType(schema, e.BaseType)
 
 	if len(e.Values) > 0 {
@@ -594,25 +593,8 @@ func (g *Generator) fieldToParameter(f *scanner.FieldInfo, path string) *spec.Pa
 
 // findEnumInfo finds EnumInfo for a given type name.
 func (g *Generator) findEnumInfo(typeName string) *scanner.EnumInfo {
-	// Try direct lookup
-	if enumName := g.scanner.TypeToEnum[typeName]; enumName != "" {
-		if enumInfo, exists := g.scanner.Enums[enumName]; exists {
-			return enumInfo
-		}
-	}
-
-	// Try with short name for package-qualified types
-	if strings.Contains(typeName, ".") {
-		parts := strings.Split(typeName, ".")
-		shortName := parts[len(parts)-1]
-		if enumName := g.scanner.TypeToEnum[shortName]; enumName != "" {
-			if enumInfo, exists := g.scanner.Enums[enumName]; exists {
-				return enumInfo
-			}
-		}
-	}
-
-	return nil
+	// Use scanner's GetEnumForType which handles aliases
+	return g.scanner.GetEnumForType(typeName)
 }
 
 // addRoute adds a route to the OpenAPI spec.
