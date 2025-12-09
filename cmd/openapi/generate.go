@@ -57,6 +57,11 @@ Example:
 }
 
 func runGenerate(cmd *cobra.Command, args []string) error {
+	// Load custom types from config file
+	if err := generator.LoadConfigFile(dir); err != nil {
+		return fmt.Errorf("failed to load config file: %w", err)
+	}
+
 	gen := generator.New(
 		generator.WithDir(dir),
 		generator.WithPattern(pattern),

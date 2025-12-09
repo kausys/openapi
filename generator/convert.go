@@ -291,6 +291,24 @@ func (g *Generator) createInlineEnumSchema(e *scanner.EnumInfo) *spec.Schema {
 
 // setSchemaType sets the type and format for a schema based on Go type.
 func (g *Generator) setSchemaType(schema *spec.Schema, goType string) {
+	// Check for registered custom types first
+	if typeInfo := GetCustomType(goType); typeInfo != nil {
+		schema.Type = typeInfo.Type
+		schema.Format = typeInfo.Format
+		if typeInfo.Example != nil && schema.Example == nil {
+			schema.Example = typeInfo.Example
+		}
+		if typeInfo.Default != nil && schema.Default == nil {
+			schema.Default = typeInfo.Default
+		}
+		for k, v := range typeInfo.Validations {
+			if schema.Format == "" && k == "format" {
+				schema.Format = v
+			}
+		}
+		return
+	}
+
 	switch goType {
 	case "string":
 		schema.Type = "string"
@@ -314,12 +332,6 @@ func (g *Generator) setSchemaType(schema *spec.Schema, goType string) {
 		schema.Format = "double"
 	case "bool":
 		schema.Type = "boolean"
-	case "time.Time":
-		schema.Type = "string"
-		schema.Format = "date-time"
-	case "uuid.UUID":
-		schema.Type = "string"
-		schema.Format = "uuid"
 	default:
 		// Check for package-qualified types
 		if strings.Contains(goType, ".") {
