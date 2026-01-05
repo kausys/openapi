@@ -75,6 +75,14 @@ func sortEnumValues(values map[string]any) []any {
 
 // structToSchema converts StructInfo to spec.Schema.
 func (g *Generator) structToSchema(s *scanner.StructInfo) *spec.Schema {
+	// Handle oneOf/anyOf model schemas (pure composition, no type/properties)
+	if s.IsOneOfModel {
+		return g.oneOfModelToSchema(s)
+	}
+	if s.IsAnyOfModel {
+		return g.anyOfModelToSchema(s)
+	}
+
 	schema := &spec.Schema{
 		Type:        "object",
 		Description: s.Description,
@@ -101,7 +109,7 @@ func (g *Generator) structToSchema(s *scanner.StructInfo) *spec.Schema {
 		schema.Required = required
 	}
 
-	// Handle composition (mark references)
+	// Handle legacy composition (mark references)
 	if len(s.AllOf) > 0 {
 		for _, ref := range s.AllOf {
 			g.markSchemaAsReferenced(ref)
@@ -128,6 +136,112 @@ func (g *Generator) structToSchema(s *scanner.StructInfo) *spec.Schema {
 	}
 
 	return schema
+}
+
+// oneOfModelToSchema converts a swagger:oneOf model to a pure oneOf schema.
+func (g *Generator) oneOfModelToSchema(s *scanner.StructInfo) *spec.Schema {
+	schema := &spec.Schema{
+		Description: s.Description,
+	}
+
+	// Add oneOf options from embedded fields marked with swagger:oneOfOption
+	for _, typeName := range s.OneOfOptions {
+		refName := g.resolveSchemaRef(typeName)
+		g.markSchemaAsReferenced(refName)
+		schema.OneOf = append(schema.OneOf, &spec.Schema{
+			Ref: "#/components/schemas/" + refName,
+		})
+	}
+
+	// Also support legacy inline oneOf: directive
+	for _, ref := range s.OneOf {
+		g.markSchemaAsReferenced(ref)
+		schema.OneOf = append(schema.OneOf, &spec.Schema{
+			Ref: "#/components/schemas/" + ref,
+		})
+	}
+
+	// Add discriminator if present
+	if s.Discriminator != nil {
+		schema.Discriminator = g.discriminatorToSpec(s.Discriminator)
+	}
+
+	return schema
+}
+
+// anyOfModelToSchema converts a swagger:anyOf model to a pure anyOf schema.
+func (g *Generator) anyOfModelToSchema(s *scanner.StructInfo) *spec.Schema {
+	schema := &spec.Schema{
+		Description: s.Description,
+	}
+
+	// Add anyOf options from embedded fields marked with swagger:anyOfOption
+	for _, typeName := range s.AnyOfOptions {
+		refName := g.resolveSchemaRef(typeName)
+		g.markSchemaAsReferenced(refName)
+		schema.AnyOf = append(schema.AnyOf, &spec.Schema{
+			Ref: "#/components/schemas/" + refName,
+		})
+	}
+
+	// Also support legacy inline anyOf: directive
+	for _, ref := range s.AnyOf {
+		g.markSchemaAsReferenced(ref)
+		schema.AnyOf = append(schema.AnyOf, &spec.Schema{
+			Ref: "#/components/schemas/" + ref,
+		})
+	}
+
+	// Add discriminator if present
+	if s.Discriminator != nil {
+		schema.Discriminator = g.discriminatorToSpec(s.Discriminator)
+	}
+
+	return schema
+}
+
+// resolveSchemaRef resolves a type name to a schema reference name.
+func (g *Generator) resolveSchemaRef(typeName string) string {
+	// Check if there's a type mapping (Go type name -> model name)
+	if modelName, ok := g.scanner.TypeToStruct[typeName]; ok {
+		return modelName
+	}
+
+	// Check for package-qualified types (e.g., "dto.Agent")
+	if strings.Contains(typeName, ".") {
+		parts := strings.Split(typeName, ".")
+		shortName := parts[len(parts)-1]
+
+		// Check type mapping by short name
+		if modelName, ok := g.scanner.TypeToStruct[shortName]; ok {
+			return modelName
+		}
+
+		// Return short name if model exists
+		if _, ok := g.scanner.Structs[shortName]; ok {
+			return shortName
+		}
+	}
+
+	return typeName
+}
+
+// discriminatorToSpec converts DiscriminatorInfo to spec.Discriminator.
+func (g *Generator) discriminatorToSpec(d *scanner.DiscriminatorInfo) *spec.Discriminator {
+	discriminator := &spec.Discriminator{
+		PropertyName: d.PropertyName,
+	}
+
+	if len(d.Mapping) > 0 {
+		discriminator.Mapping = make(map[string]string)
+		for key, schemaName := range d.Mapping {
+			// Resolve schema name to full reference
+			refName := g.resolveSchemaRef(schemaName)
+			discriminator.Mapping[key] = "#/components/schemas/" + refName
+		}
+	}
+
+	return discriminator
 }
 
 // getPropertyName returns the JSON property name for a field.

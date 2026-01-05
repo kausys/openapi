@@ -101,10 +101,23 @@ type StructInfo struct {
 	IsParameter       bool
 	IsModel           bool
 	SourceFile        string
-	OneOf             []string
-	AllOf             []string
-	AnyOf             []string
+	OneOf             []string // Legacy: inline oneOf references from "oneOf:" directive
+	AllOf             []string // Legacy: inline allOf references from "allOf:" directive
+	AnyOf             []string // Legacy: inline anyOf references from "anyOf:" directive
 	Specs             []string // Multi-spec: which specs this model belongs to (empty = all specs)
+
+	// New oneOf/anyOf model support (swagger:oneOf / swagger:anyOf)
+	IsOneOfModel    bool                 // True if struct is marked with swagger:oneOf
+	IsAnyOfModel    bool                 // True if struct is marked with swagger:anyOf
+	OneOfOptions    []string             // Types marked with swagger:oneOfOption
+	AnyOfOptions    []string             // Types marked with swagger:anyOfOption
+	Discriminator   *DiscriminatorInfo   // Discriminator configuration for polymorphism
+}
+
+// DiscriminatorInfo contains discriminator configuration for oneOf/anyOf schemas.
+type DiscriminatorInfo struct {
+	PropertyName string            // The property name that holds the discriminating value
+	Mapping      map[string]string // Maps discriminator values to schema names
 }
 
 // FieldInfo contains information about a struct field.

@@ -6,7 +6,7 @@ import (
 	"strings"
 )
 
-// processSchemas processes swagger:model and swagger:parameters directives.
+// processSchemas processes swagger:model, swagger:parameters, swagger:oneOf, and swagger:anyOf directives.
 func (s *Scanner) processSchemas(filePath string, file *ast.File) error {
 	for _, decl := range file.Decls {
 		genDecl, ok := decl.(*ast.GenDecl)
@@ -25,7 +25,7 @@ func (s *Scanner) processSchemas(filePath string, file *ast.File) error {
 			}
 
 			var name string
-			var isParameter, isModel bool
+			var isParameter, isModel, isOneOfModel, isAnyOfModel bool
 
 			if hasDirective(genDecl.Doc, ModelDirective) {
 				name = extractDirectiveValue(genDecl.Doc, ModelDirective)
@@ -37,6 +37,26 @@ func (s *Scanner) processSchemas(filePath string, file *ast.File) error {
 				isParameter = true
 			}
 
+			// Check for swagger:oneOf directive
+			if hasDirective(genDecl.Doc, OneOfModelDirective) {
+				customName := extractDirectiveValue(genDecl.Doc, OneOfModelDirective)
+				if customName != "" {
+					name = customName
+				}
+				isOneOfModel = true
+				isModel = true // oneOf models are also models
+			}
+
+			// Check for swagger:anyOf directive
+			if hasDirective(genDecl.Doc, AnyOfModelDirective) {
+				customName := extractDirectiveValue(genDecl.Doc, AnyOfModelDirective)
+				if customName != "" {
+					name = customName
+				}
+				isAnyOfModel = true
+				isModel = true // anyOf models are also models
+			}
+
 			if !isModel && !isParameter {
 				continue
 			}
@@ -45,22 +65,40 @@ func (s *Scanner) processSchemas(filePath string, file *ast.File) error {
 				name = typeSpec.Name.Name
 			}
 
+			// List of directives to exclude from description
+			descExclude := []string{
+				SwaggerPrefix, OneOfDirective, AllOfDirective, AnyOfDirective,
+				SpecDirective, DiscriminatorDirective,
+			}
+
 			structInfo := &StructInfo{
-				Name:        name,
-				Fields:      []*FieldInfo{},
-				Description: extractDescription(genDecl.Doc, []string{SwaggerPrefix, OneOfDirective, AllOfDirective, AnyOfDirective, SpecDirective}),
-				IsParameter: isParameter,
-				IsModel:     isModel,
-				SourceFile:  filePath,
-				OneOf:       extractCompositionSchemas(genDecl.Doc, OneOfDirective),
-				AllOf:       extractCompositionSchemas(genDecl.Doc, AllOfDirective),
-				AnyOf:       extractCompositionSchemas(genDecl.Doc, AnyOfDirective),
-				Specs:       extractSpecs(genDecl.Doc),
+				Name:         name,
+				Fields:       []*FieldInfo{},
+				Description:  extractDescription(genDecl.Doc, descExclude),
+				IsParameter:  isParameter,
+				IsModel:      isModel,
+				IsOneOfModel: isOneOfModel,
+				IsAnyOfModel: isAnyOfModel,
+				SourceFile:   filePath,
+				OneOf:        extractCompositionSchemas(genDecl.Doc, OneOfDirective),
+				AllOf:        extractCompositionSchemas(genDecl.Doc, AllOfDirective),
+				AnyOf:        extractCompositionSchemas(genDecl.Doc, AnyOfDirective),
+				Specs:        extractSpecs(genDecl.Doc),
+			}
+
+			// Extract discriminator if present
+			if isOneOfModel || isAnyOfModel {
+				structInfo.Discriminator = extractDiscriminator(genDecl.Doc)
 			}
 
 			// Process struct fields
 			if structType, ok := typeSpec.Type.(*ast.StructType); ok {
-				processStructFields(structInfo, structType)
+				if isOneOfModel || isAnyOfModel {
+					// For oneOf/anyOf models, extract options from embedded fields
+					processOneOfAnyOfFields(structInfo, structType, isOneOfModel)
+				} else {
+					processStructFields(structInfo, structType)
+				}
 			}
 
 			s.Structs[name] = structInfo
@@ -69,6 +107,118 @@ func (s *Scanner) processSchemas(filePath string, file *ast.File) error {
 		}
 	}
 	return nil
+}
+
+// extractDiscriminator extracts discriminator configuration from comments.
+// Only extracts the property name; mapping is built from field-level directives.
+func extractDiscriminator(doc *ast.CommentGroup) *DiscriminatorInfo {
+	if doc == nil {
+		return nil
+	}
+
+	propertyName := extractDirectiveValue(doc, DiscriminatorDirective)
+	if propertyName == "" {
+		return nil
+	}
+
+	return &DiscriminatorInfo{
+		PropertyName: propertyName,
+		Mapping:      make(map[string]string),
+	}
+}
+
+// processOneOfAnyOfFields processes embedded fields for oneOf/anyOf models.
+func processOneOfAnyOfFields(structInfo *StructInfo, structType *ast.StructType, isOneOf bool) {
+	if structType.Fields == nil {
+		return
+	}
+
+	for _, field := range structType.Fields.List {
+		// Only process embedded fields (no names)
+		if len(field.Names) != 0 {
+			continue
+		}
+
+		// Check if field has oneOfOption or anyOfOption directive
+		var optionDirective string
+		var discriminatorValue string
+
+		// Check doc comments
+		if field.Doc != nil {
+			if isOneOf {
+				optionDirective, discriminatorValue = extractOptionDirective(field.Doc, OneOfOptionDirective)
+			} else {
+				optionDirective, discriminatorValue = extractOptionDirective(field.Doc, AnyOfOptionDirective)
+			}
+		}
+
+		// Also check inline comments if not found
+		if optionDirective == "" && field.Comment != nil {
+			if isOneOf {
+				optionDirective, discriminatorValue = extractOptionDirective(field.Comment, OneOfOptionDirective)
+			} else {
+				optionDirective, discriminatorValue = extractOptionDirective(field.Comment, AnyOfOptionDirective)
+			}
+		}
+
+		if optionDirective == "" {
+			continue
+		}
+
+		// Extract the type name
+		typeName := extractTypeName(field.Type)
+		if typeName == "" {
+			continue
+		}
+
+		if isOneOf {
+			structInfo.OneOfOptions = append(structInfo.OneOfOptions, typeName)
+		} else {
+			structInfo.AnyOfOptions = append(structInfo.AnyOfOptions, typeName)
+		}
+
+		// Add discriminator mapping if present
+		if discriminatorValue != "" && structInfo.Discriminator != nil {
+			structInfo.Discriminator.Mapping[discriminatorValue] = typeName
+		}
+	}
+}
+
+// extractOptionDirective extracts the option directive and its discriminator value.
+// Supports formats:
+//   - swagger:oneOfOption
+//   - swagger:oneOfOption discriminator=VALUE
+func extractOptionDirective(doc *ast.CommentGroup, directive string) (string, string) {
+	if doc == nil {
+		return "", ""
+	}
+
+	for _, comment := range doc.List {
+		text := strings.TrimPrefix(comment.Text, "//")
+		text = strings.TrimPrefix(text, "/*")
+		text = strings.TrimSuffix(text, "*/")
+		text = strings.TrimSpace(text)
+
+		if !strings.HasPrefix(text, directive) {
+			continue
+		}
+
+		// Found the directive
+		remainder := strings.TrimPrefix(text, directive)
+		remainder = strings.TrimSpace(remainder)
+
+		// Check for discriminator=VALUE
+		if strings.HasPrefix(remainder, "discriminator=") {
+			value := strings.TrimPrefix(remainder, "discriminator=")
+			value = strings.TrimSpace(value)
+			return directive, value
+		}
+
+		// Just the directive without discriminator value
+		return directive, ""
+	}
+
+	return "", ""
 }
 
 // extractCompositionSchemas extracts schema names from composition directives.

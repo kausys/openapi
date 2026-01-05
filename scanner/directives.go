@@ -14,6 +14,14 @@ const (
 	EnumDirective = "swagger:enum"
 	// IgnoreDirective marks a field to be ignored
 	IgnoreDirective = "swagger:ignore"
+	// OneOfModelDirective marks a struct as a oneOf schema (polymorphic union)
+	OneOfModelDirective = "swagger:oneOf"
+	// AnyOfModelDirective marks a struct as an anyOf schema
+	AnyOfModelDirective = "swagger:anyOf"
+	// OneOfOptionDirective marks an embedded field as a oneOf option
+	OneOfOptionDirective = "swagger:oneOfOption"
+	// AnyOfOptionDirective marks an embedded field as an anyOf option
+	AnyOfOptionDirective = "swagger:anyOfOption"
 )
 
 // Meta section directives
@@ -38,11 +46,18 @@ const (
 	ServersDirective         = "Servers:"
 )
 
-// Schema composition directives
+// Schema composition directives (legacy inline style)
 const (
 	OneOfDirective = "oneOf:"
 	AllOfDirective = "allOf:"
 	AnyOfDirective = "anyOf:"
+)
+
+// Discriminator directives for oneOf/anyOf polymorphism
+const (
+	// DiscriminatorDirective specifies the property name for discriminator
+	// Format: discriminator: propertyName
+	DiscriminatorDirective = "discriminator:"
 )
 
 // Field-level directives
