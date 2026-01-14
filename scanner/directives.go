@@ -153,8 +153,8 @@ const (
 	FormatDate     = "date"
 	FormatDateTime = "date-time"
 	FormatPassword = "password"
-	FormatByte     = "byte"
-	FormatBinary   = "binary"
+	FormatByte     = "byte"   // For base64 encoded files
+	FormatBinary   = "binary" // For file uploads in multipart/form-data
 	FormatEmail    = "email"
 	FormatUUID     = "uuid"
 	FormatURI      = "uri"

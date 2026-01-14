@@ -588,7 +588,7 @@ func (g *Generator) getOperationParameters(r *scanner.RouteInfo) ([]*spec.Parame
 
 		// Handle request body (in:body)
 		if field.IsRequestBody || field.In == "body" {
-			requestBody = g.fieldToRequestBody(field)
+			requestBody = g.fieldToRequestBody(field, r.Consumes)
 			continue
 		}
 
@@ -602,7 +602,8 @@ func (g *Generator) getOperationParameters(r *scanner.RouteInfo) ([]*spec.Parame
 }
 
 // fieldToRequestBody converts a FieldInfo to spec.RequestBody.
-func (g *Generator) fieldToRequestBody(f *scanner.FieldInfo) *spec.RequestBody {
+// consumes specifies the content types from the route's Consumes directive.
+func (g *Generator) fieldToRequestBody(f *scanner.FieldInfo, consumes []string) *spec.RequestBody {
 	var schema *spec.Schema
 
 	// Handle inline structs
@@ -612,14 +613,34 @@ func (g *Generator) fieldToRequestBody(f *scanner.FieldInfo) *spec.RequestBody {
 		schema = g.typeToSchema(f.Type)
 	}
 
+	// Determine content types to use
+	contentTypes := consumes
+	if len(contentTypes) == 0 {
+		// Default to application/json if no consumes specified
+		contentTypes = []string{"application/json"}
+	}
+
+	// Build content map for each content type
+	content := make(map[string]*spec.MediaType)
+	for _, contentType := range contentTypes {
+		mediaType := &spec.MediaType{}
+
+		// Handle multipart/form-data specially
+		if contentType == scanner.ContentTypeMultipart {
+			mediaType.Schema = g.createMultipartSchema(f, schema)
+			mediaType.Encoding = g.createMultipartEncoding(f, schema)
+		} else {
+			// For other content types (JSON, XML, etc.), use the schema as-is
+			mediaType.Schema = schema
+		}
+
+		content[contentType] = mediaType
+	}
+
 	return &spec.RequestBody{
 		Description: f.Description,
 		Required:    f.Required,
-		Content: map[string]*spec.MediaType{
-			"application/json": {
-				Schema: schema,
-			},
-		},
+		Content:     content,
 	}
 }
 
@@ -755,4 +776,50 @@ func (g *Generator) securitySchemeToSpec(s *scanner.SecuritySchemeInfo) *spec.Se
 		Scheme:       s.Scheme,
 		BearerFormat: s.BearerFormat,
 	}
+}
+
+// createMultipartSchema creates a schema for multipart/form-data requests.
+// For multipart, the schema must be type: object with properties for each part.
+func (g *Generator) createMultipartSchema(f *scanner.FieldInfo, originalSchema *spec.Schema) *spec.Schema {
+	// If the field is an inline struct, use it directly as it already has properties
+	if f.IsInlineStruct && f.InlineStruct != nil {
+		return originalSchema
+	}
+
+	// If it's a reference to a model, use it as-is
+	// The schema should already be type: object with properties
+	return originalSchema
+}
+
+// createMultipartEncoding creates encoding information for multipart/form-data.
+// This is used to specify content types for file upload fields.
+func (g *Generator) createMultipartEncoding(f *scanner.FieldInfo, schema *spec.Schema) map[string]*spec.Encoding {
+	// Only create encoding if we have an inline struct with fields
+	if !f.IsInlineStruct || f.InlineStruct == nil {
+		return nil
+	}
+
+	encoding := make(map[string]*spec.Encoding)
+
+	// Check each field in the struct for file upload fields (format: binary)
+	for _, field := range f.InlineStruct.Fields {
+		propName := g.getPropertyName(field)
+		if propName == "" || propName == "-" {
+			continue
+		}
+
+		// Check if this field is a file upload (format: binary)
+		if format, ok := field.Validations["format"]; ok && format == scanner.FormatBinary {
+			// Add encoding for this field
+			encoding[propName] = &spec.Encoding{
+				ContentType: "application/octet-stream",
+			}
+		}
+	}
+
+	if len(encoding) == 0 {
+		return nil
+	}
+
+	return encoding
 }

@@ -545,7 +545,9 @@ func parseFieldDoc(fieldInfo *FieldInfo, doc *ast.CommentGroup) {
 		// Take only the first word (e.g., "header" from "header 'Origin'")
 		inValue = strings.Fields(inValue)[0]
 		fieldInfo.In = inValue
-		if inValue == "body" {
+		// Both "body" and "form" indicate request body
+		// "form" is more semantic for multipart/form-data
+		if inValue == "body" || inValue == "form" {
 			fieldInfo.IsRequestBody = true
 		}
 	}

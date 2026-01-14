@@ -1,0 +1,221 @@
+openapi: 3.0.4
+info:
+    title: File Upload API
+    description: API for uploading files with metadata
+    version: 1.0.0
+paths:
+    /api/v2/kyc/banking-verification/business/upload-document:
+        post:
+            tags:
+                - KYC
+            operationId: uploadDocument
+            parameters:
+                - name: accountId
+                  in: query
+                  description: The account ID to upload the document for
+                  required: true
+                  schema:
+                    type: string
+                    example: 00000000-0000-0000-0000-000000000000
+                - name: documentType
+                  in: query
+                  description: The document type
+                  required: true
+                  schema:
+                    enum:
+                        - articles_of_incorporation
+                        - certificate_of_incorporation
+                        - dba
+                        - ein_confirmation
+                        - formation
+                        - organization_chart
+                        - other
+                        - proof_of_address
+                    type: string
+                    description: KYBDocumentType represents the type of business document
+                    example: certificate_of_incorporation
+            requestBody:
+                content:
+                    multipart/form-data:
+                        schema:
+                            required:
+                                - file
+                            type: object
+                            properties:
+                                file:
+                                    type: string
+                                    description: The file to upload
+                                    format: binary
+                        encoding:
+                            file:
+                                contentType: application/octet-stream
+            responses: {}
+            security:
+                - bearer: []
+    /upload/flexible:
+        post:
+            tags:
+                - files
+            operationId: uploadFlexible
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            type: object
+                            properties:
+                                file:
+                                    type: string
+                                    description: The file to upload (can be binary or base64)
+                                    format: binary
+                    multipart/form-data:
+                        schema:
+                            type: object
+                            properties:
+                                file:
+                                    type: string
+                                    description: The file to upload (can be binary or base64)
+                                    format: binary
+                        encoding:
+                            file:
+                                contentType: application/octet-stream
+            responses: {}
+    /upload/metadata:
+        post:
+            tags:
+                - files
+            operationId: uploadWithMetadata
+            requestBody:
+                content:
+                    multipart/form-data:
+                        schema:
+                            required:
+                                - title
+                            type: object
+                            properties:
+                                description:
+                                    type: string
+                                    description: File description
+                                file:
+                                    type: string
+                                    description: The file to upload
+                                    format: binary
+                                is_public:
+                                    type: boolean
+                                    description: Is file public
+                                tags:
+                                    type: array
+                                    items:
+                                        type: string
+                                    description: File tags
+                                title:
+                                    type: string
+                                    description: File title
+                        encoding:
+                            file:
+                                contentType: application/octet-stream
+            responses: {}
+    /upload/multiple:
+        post:
+            tags:
+                - files
+            operationId: uploadMultipleFiles
+            requestBody:
+                content:
+                    multipart/form-data:
+                        schema:
+                            type: object
+                            properties:
+                                avatar:
+                                    type: string
+                                    description: Profile picture
+                                    format: binary
+                                resume:
+                                    type: string
+                                    description: Resume document
+                                    format: binary
+                        encoding:
+                            avatar:
+                                contentType: application/octet-stream
+                            resume:
+                                contentType: application/octet-stream
+            responses: {}
+    /upload/single:
+        post:
+            tags:
+                - files
+            operationId: uploadSingleFile
+            requestBody:
+                content:
+                    multipart/form-data:
+                        schema:
+                            type: object
+                            properties:
+                                file:
+                                    type: string
+                                    description: The file to upload
+                                    format: binary
+                        encoding:
+                            file:
+                                contentType: application/octet-stream
+            responses: {}
+components:
+    schemas:
+        ErrorResponse:
+            type: object
+            properties:
+                message:
+                    type: string
+                    description: |-
+                        Error message
+                        Example: Invalid file format
+            description: ErrorResponse represents an error response
+        KYBDocumentType:
+            enum:
+                - articles_of_incorporation
+                - certificate_of_incorporation
+                - dba
+                - ein_confirmation
+                - formation
+                - organization_chart
+                - other
+                - proof_of_address
+            type: string
+            description: KYBDocumentType represents the type of business document
+            example: articles_of_incorporation
+        UploadDocumentResponse:
+            type: object
+            properties:
+                documentId:
+                    type: string
+                    description: Document ID
+                    example: doc_123456
+                status:
+                    type: string
+                    description: Upload status
+                    example: success
+            description: UploadDocumentResponse represents the response from document upload
+        UploadResponse:
+            type: object
+            properties:
+                filename:
+                    type: string
+                    description: |-
+                        File name
+                        Example: document.pdf
+                id:
+                    type: string
+                    description: |-
+                        Upload ID
+                        Example: abc123
+                size:
+                    type: integer
+                    description: |-
+                        File size in bytes
+                        Example: 1024
+                    format: int64
+                uploaded_at:
+                    type: string
+                    description: |-
+                        Upload timestamp
+                        Example: 2024-01-15T10:30:00Z
+            description: UploadResponse represents a successful upload response

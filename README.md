@@ -112,6 +112,60 @@ components:
 | `swagger:enum` | Enum definitions |
 | `swagger:allOf` | Schema composition |
 
+### File Uploads (Multipart Form Data)
+
+Support for file uploads using `multipart/form-data`:
+
+```go
+// swagger:parameters uploadFile
+type UploadFileParams struct {
+    // in:body
+    Body struct {
+        // The file to upload
+        // format: binary
+        File string `json:"file"`
+        // Optional file description
+        Description string `json:"description"`
+    }
+}
+
+// swagger:route POST /upload files uploadFile
+// Consumes:
+// - multipart/form-data
+//
+// Upload a file with metadata
+func UploadFile() {}
+```
+
+This generates:
+
+```yaml
+paths:
+  /upload:
+    post:
+      operationId: uploadFile
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+                description:
+                  type: string
+            encoding:
+              file:
+                contentType: application/octet-stream
+```
+
+**Key points:**
+- Use `Consumes:` directive with `multipart/form-data`
+- Mark file fields with `format: binary`
+- Mix file fields with regular form fields
+- Supports multiple file uploads in a single request
+
 ### Multi-Spec Generation
 
 Generate multiple API specs from a single codebase using the `spec:` directive:
