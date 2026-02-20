@@ -21,6 +21,8 @@ type Config struct {
 	Validate bool
 	// CleanUnused removes schemas that are declared but not referenced
 	CleanUnused bool
+	// NoDefault skips generating the default spec for routes without spec: directives
+	NoDefault bool
 }
 
 // Option is a function type for configuring the Generator.
@@ -80,6 +82,13 @@ func WithValidation(validate bool) Option {
 func WithCleanUnused(clean bool) Option {
 	return func(c *Config) {
 		c.CleanUnused = clean
+	}
+}
+
+// WithNoDefault skips generating the default spec for routes without spec: directives.
+func WithNoDefault(noDefault bool) Option {
+	return func(c *Config) {
+		c.NoDefault = noDefault
 	}
 }
 

@@ -90,8 +90,10 @@ func (g *Generator) collectSpecNames() map[string]bool {
 
 	for _, route := range g.scanner.Routes {
 		if len(route.Specs) == 0 {
-			// Routes without spec: go to default
-			specNames[scanner.DefaultSpec] = true
+			if !g.config.NoDefault {
+				// Routes without spec: go to default
+				specNames[scanner.DefaultSpec] = true
+			}
 		} else {
 			for _, s := range route.Specs {
 				specNames[s] = true

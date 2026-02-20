@@ -19,6 +19,7 @@ var (
 	cleanUnused  bool
 	multiSpec    bool
 	specName     string
+	noDefault    bool
 )
 
 func init() {
@@ -33,6 +34,7 @@ func init() {
 	generateCmd.Flags().BoolVar(&cleanUnused, "clean-unused", false, "Remove unreferenced schemas")
 	generateCmd.Flags().BoolVar(&multiSpec, "multi-specs", false, "Generate multiple specs based on spec: directives")
 	generateCmd.Flags().StringVar(&specName, "spec", "", "Generate only a specific spec by name")
+	generateCmd.Flags().BoolVar(&noDefault, "no-default", false, "Skip generating the default spec for routes without spec: directives")
 	rootCmd.AddCommand(generateCmd)
 }
 
@@ -71,6 +73,7 @@ func runGenerate(cmd *cobra.Command, args []string) error {
 		generator.WithValidation(validate),
 		generator.WithIgnorePaths(ignorePaths...),
 		generator.WithCleanUnused(cleanUnused),
+		generator.WithNoDefault(noDefault),
 	)
 
 	if multiSpec {
