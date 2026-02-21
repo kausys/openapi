@@ -83,6 +83,28 @@ func (g *Generator) structToSchema(s *scanner.StructInfo) *spec.Schema {
 		return g.anyOfModelToSchema(s)
 	}
 
+	// Handle non-struct underlying types (arrays, maps, primitives)
+	switch s.UnderlyingKind {
+	case scanner.KindArray:
+		return &spec.Schema{
+			Type:        "array",
+			Description: s.Description,
+			Items:       g.typeToSchema(s.ElementType),
+		}
+	case scanner.KindMap:
+		return &spec.Schema{
+			Type:                 "object",
+			Description:          s.Description,
+			AdditionalProperties: g.typeToSchema(s.ElementType),
+		}
+	case scanner.KindPrimitive:
+		schema := &spec.Schema{
+			Description: s.Description,
+		}
+		g.setSchemaType(schema, s.ElementType)
+		return schema
+	}
+
 	schema := &spec.Schema{
 		Type:        "object",
 		Description: s.Description,

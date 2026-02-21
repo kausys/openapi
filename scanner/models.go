@@ -91,6 +91,16 @@ type EmbeddedTypeInfo struct {
 	Index int    // Position in the struct where it was declared
 }
 
+// UnderlyingKind represents the kind of Go type underlying a swagger:model declaration.
+type UnderlyingKind int
+
+const (
+	KindStruct    UnderlyingKind = iota // type T struct{...}
+	KindArray                           // type T []E
+	KindMap                             // type T map[K]V
+	KindPrimitive                       // type T string, type T int, etc.
+)
+
 // StructInfo contains information about a struct marked as model or parameters.
 type StructInfo struct {
 	Name              string
@@ -106,12 +116,16 @@ type StructInfo struct {
 	AnyOf             []string // Legacy: inline anyOf references from "anyOf:" directive
 	Specs             []string // Multi-spec: which specs this model belongs to (empty = all specs)
 
+	UnderlyingKind UnderlyingKind // What kind of Go type this model wraps
+	ElementType    string         // For arrays: element type name; for maps: value type name
+	MapKeyType     string         // For maps: key type name
+
 	// New oneOf/anyOf model support (swagger:oneOf / swagger:anyOf)
-	IsOneOfModel    bool                 // True if struct is marked with swagger:oneOf
-	IsAnyOfModel    bool                 // True if struct is marked with swagger:anyOf
-	OneOfOptions    []string             // Types marked with swagger:oneOfOption
-	AnyOfOptions    []string             // Types marked with swagger:anyOfOption
-	Discriminator   *DiscriminatorInfo   // Discriminator configuration for polymorphism
+	IsOneOfModel  bool               // True if struct is marked with swagger:oneOf
+	IsAnyOfModel  bool               // True if struct is marked with swagger:anyOf
+	OneOfOptions  []string           // Types marked with swagger:oneOfOption
+	AnyOfOptions  []string           // Types marked with swagger:anyOfOption
+	Discriminator *DiscriminatorInfo // Discriminator configuration for polymorphism
 }
 
 // DiscriminatorInfo contains discriminator configuration for oneOf/anyOf schemas.

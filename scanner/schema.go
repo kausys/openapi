@@ -91,14 +91,30 @@ func (s *Scanner) processSchemas(filePath string, file *ast.File) error {
 				structInfo.Discriminator = extractDiscriminator(genDecl.Doc)
 			}
 
-			// Process struct fields
-			if structType, ok := typeSpec.Type.(*ast.StructType); ok {
+			// Process type based on its underlying kind
+			switch t := typeSpec.Type.(type) {
+			case *ast.StructType:
+				structInfo.UnderlyingKind = KindStruct
 				if isOneOfModel || isAnyOfModel {
-					// For oneOf/anyOf models, extract options from embedded fields
-					processOneOfAnyOfFields(structInfo, structType, isOneOfModel)
+					processOneOfAnyOfFields(structInfo, t, isOneOfModel)
 				} else {
-					processStructFields(structInfo, structType)
+					processStructFields(structInfo, t)
 				}
+			case *ast.ArrayType:
+				structInfo.UnderlyingKind = KindArray
+				structInfo.ElementType = extractTypeName(t.Elt)
+			case *ast.MapType:
+				structInfo.UnderlyingKind = KindMap
+				structInfo.ElementType = extractTypeName(t.Value)
+				if keyIdent, ok := t.Key.(*ast.Ident); ok {
+					structInfo.MapKeyType = keyIdent.Name
+				}
+			case *ast.Ident:
+				structInfo.UnderlyingKind = KindPrimitive
+				structInfo.ElementType = t.Name
+			case *ast.SelectorExpr:
+				structInfo.UnderlyingKind = KindPrimitive
+				structInfo.ElementType = extractTypeName(t)
 			}
 
 			s.Structs[name] = structInfo
