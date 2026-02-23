@@ -4,7 +4,8 @@ import (
 	"go/ast"
 	"go/token"
 	"go/types"
-	"sort"
+	"slices"
+	"strings"
 
 	"golang.org/x/tools/go/packages"
 )
@@ -271,8 +272,8 @@ func (s *Scanner) resolveEmbeddedTypesRecursive(structInfo *StructInfo, resolved
 
 // sortFieldsByIndex sorts fields by their Index to maintain declaration order.
 func (s *Scanner) sortFieldsByIndex(structInfo *StructInfo) {
-	sort.SliceStable(structInfo.Fields, func(i, j int) bool {
-		return structInfo.Fields[i].Index < structInfo.Fields[j].Index
+	slices.SortStableFunc(structInfo.Fields, func(a, b *FieldInfo) int {
+		return a.Index - b.Index
 	})
 }
 
@@ -291,7 +292,7 @@ func (s *Scanner) resolveEmbeddedType(structInfo *StructInfo, embeddedInfo *Embe
 
 	// Check by short name (without package prefix)
 	shortName := embeddedTypeName
-	if idx := lastIndex(embeddedTypeName, "."); idx >= 0 {
+	if idx := strings.LastIndex(embeddedTypeName, "."); idx >= 0 {
 		shortName = embeddedTypeName[idx+1:]
 	}
 
@@ -405,14 +406,4 @@ func (s *Scanner) setFieldTypeFromTypesType(fieldInfo *FieldInfo, t types.Type) 
 		}
 		s.setFieldTypeFromTypesType(fieldInfo, typ.Elem())
 	}
-}
-
-// lastIndex returns the index of the last occurrence of sep in s, or -1 if not found.
-func lastIndex(s, sep string) int {
-	for i := len(s) - 1; i >= 0; i-- {
-		if s[i] == sep[0] {
-			return i
-		}
-	}
-	return -1
 }

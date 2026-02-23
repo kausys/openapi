@@ -120,12 +120,12 @@ func parseContact(comments []string, startIdx int) *ContactInfo {
 		line = strings.TrimPrefix(line, "-")
 		line = strings.TrimSpace(line)
 
-		if strings.HasPrefix(line, "name:") {
-			contact.Name = strings.TrimSpace(strings.TrimPrefix(line, "name:"))
-		} else if strings.HasPrefix(line, "url:") {
-			contact.URL = strings.TrimSpace(strings.TrimPrefix(line, "url:"))
-		} else if strings.HasPrefix(line, "email:") {
-			contact.Email = strings.TrimSpace(strings.TrimPrefix(line, "email:"))
+		if after, ok := strings.CutPrefix(line, "name:"); ok {
+			contact.Name = strings.TrimSpace(after)
+		} else if after, ok := strings.CutPrefix(line, "url:"); ok {
+			contact.URL = strings.TrimSpace(after)
+		} else if after, ok := strings.CutPrefix(line, "email:"); ok {
+			contact.Email = strings.TrimSpace(after)
 		}
 	}
 	return contact
@@ -142,10 +142,10 @@ func parseLicense(comments []string, startIdx int) *LicenseInfo {
 		line = strings.TrimPrefix(line, "-")
 		line = strings.TrimSpace(line)
 
-		if strings.HasPrefix(line, "name:") {
-			license.Name = strings.TrimSpace(strings.TrimPrefix(line, "name:"))
-		} else if strings.HasPrefix(line, "url:") {
-			license.URL = strings.TrimSpace(strings.TrimPrefix(line, "url:"))
+		if after, ok := strings.CutPrefix(line, "name:"); ok {
+			license.Name = strings.TrimSpace(after)
+		} else if after, ok := strings.CutPrefix(line, "url:"); ok {
+			license.URL = strings.TrimSpace(after)
 		}
 	}
 	return license
@@ -162,10 +162,10 @@ func parseExternalDocs(comments []string, startIdx int) *ExternalDocsInfo {
 		line = strings.TrimPrefix(line, "-")
 		line = strings.TrimSpace(line)
 
-		if strings.HasPrefix(line, "description:") {
-			docs.Description = strings.TrimSpace(strings.TrimPrefix(line, "description:"))
-		} else if strings.HasPrefix(line, "url:") {
-			docs.URL = strings.TrimSpace(strings.TrimPrefix(line, "url:"))
+		if after, ok := strings.CutPrefix(line, "description:"); ok {
+			docs.Description = strings.TrimSpace(after)
+		} else if after, ok := strings.CutPrefix(line, "url:"); ok {
+			docs.URL = strings.TrimSpace(after)
 		}
 	}
 	return docs
@@ -222,8 +222,8 @@ func parseListSection(comments []string, startIdx int) []string {
 		}
 
 		// Remove leading dash if present
-		if strings.HasPrefix(line, "-") {
-			line = strings.TrimSpace(strings.TrimPrefix(line, "-"))
+		if after, ok := strings.CutPrefix(line, "-"); ok {
+			line = strings.TrimSpace(after)
 		}
 
 		if line != "" {
@@ -261,8 +261,8 @@ func parseSecuritySchemes(comments []string, startIdx int) map[string]*SecurityS
 		// Check if this is a property line (with or without dash prefix)
 		isProperty := false
 		cleanLine := line
-		if strings.HasPrefix(cleanLine, "-") {
-			cleanLine = strings.TrimSpace(strings.TrimPrefix(cleanLine, "-"))
+		if after, ok := strings.CutPrefix(cleanLine, "-"); ok {
+			cleanLine = strings.TrimSpace(after)
 		}
 		for _, prefix := range propertyPrefixes {
 			if strings.HasPrefix(cleanLine, prefix) {

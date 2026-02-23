@@ -41,7 +41,7 @@ func hasDirective(doc *ast.CommentGroup, directive string) bool {
 		text = strings.TrimPrefix(text, "/*")
 		text = strings.TrimSuffix(text, "*/")
 		text = strings.TrimSpace(text)
-		if strings.HasPrefix(text, directive) {
+		if _, ok := strings.CutPrefix(text, directive); ok {
 			return true
 		}
 	}
@@ -59,8 +59,7 @@ func extractDirectiveValue(doc *ast.CommentGroup, directive string) string {
 		text = strings.TrimPrefix(text, "/*")
 		text = strings.TrimSuffix(text, "*/")
 		text = strings.TrimSpace(text)
-		if strings.HasPrefix(text, directive) {
-			value := strings.TrimPrefix(text, directive)
+		if value, ok := strings.CutPrefix(text, directive); ok {
 			return strings.TrimSpace(value)
 		}
 	}
@@ -77,16 +76,15 @@ func trimComments(doc *ast.CommentGroup) []string {
 	for _, comment := range doc.List {
 		text := comment.Text
 		// Handle // comments
-		if strings.HasPrefix(text, "//") {
-			text = strings.TrimPrefix(text, "//")
-			lines = append(lines, strings.TrimSpace(text))
+		if after, ok := strings.CutPrefix(text, "//"); ok {
+			lines = append(lines, strings.TrimSpace(after))
+			continue
 		}
 		// Handle /* */ comments
-		if strings.HasPrefix(text, "/*") {
-			text = strings.TrimPrefix(text, "/*")
-			text = strings.TrimSuffix(text, "*/")
+		if after, ok := strings.CutPrefix(text, "/*"); ok {
+			after = strings.TrimSuffix(after, "*/")
 			// Split by newlines for multi-line comments
-			for _, line := range strings.Split(text, "\n") {
+			for line := range strings.SplitSeq(after, "\n") {
 				lines = append(lines, strings.TrimSpace(line))
 			}
 		}
@@ -180,12 +178,7 @@ func extractSpecs(doc *ast.CommentGroup) []string {
 		text = strings.TrimSuffix(text, "*/")
 		text = strings.TrimSpace(text)
 
-		if strings.HasPrefix(strings.ToLower(text), SpecDirective) {
-			value := strings.TrimPrefix(text, SpecDirective)
-			// Handle case-insensitive prefix
-			if strings.HasPrefix(text, "Spec:") {
-				value = strings.TrimPrefix(text, "Spec:")
-			}
+		if value, ok := strings.CutPrefix(strings.ToLower(text), SpecDirective); ok {
 			value = strings.TrimSpace(value)
 
 			if value == "" {

@@ -215,17 +215,16 @@ func extractOptionDirective(doc *ast.CommentGroup, directive string) (string, st
 		text = strings.TrimSuffix(text, "*/")
 		text = strings.TrimSpace(text)
 
-		if !strings.HasPrefix(text, directive) {
+		remainder, ok := strings.CutPrefix(text, directive)
+		if !ok {
 			continue
 		}
 
 		// Found the directive
-		remainder := strings.TrimPrefix(text, directive)
 		remainder = strings.TrimSpace(remainder)
 
 		// Check for discriminator=VALUE
-		if strings.HasPrefix(remainder, "discriminator=") {
-			value := strings.TrimPrefix(remainder, "discriminator=")
+		if value, ok := strings.CutPrefix(remainder, "discriminator="); ok {
 			value = strings.TrimSpace(value)
 			return directive, value
 		}
@@ -249,7 +248,7 @@ func extractCompositionSchemas(doc *ast.CommentGroup, directive string) []string
 	}
 
 	var schemas []string
-	for _, s := range strings.Split(value, ",") {
+	for s := range strings.SplitSeq(value, ",") {
 		s = strings.TrimSpace(s)
 		if s != "" {
 			schemas = append(schemas, s)
@@ -469,18 +468,18 @@ func getTagValue(tagValue, key string) string {
 
 // parseValidateTag parses validation rules from the validate tag.
 func parseValidateTag(fieldInfo *FieldInfo, validate string) {
-	rules := strings.Split(validate, ",")
-	for _, rule := range rules {
+	rules := strings.SplitSeq(validate, ",")
+	for rule := range rules {
 		rule = strings.TrimSpace(rule)
 		if rule == "required" {
 			fieldInfo.Required = true
 			fieldInfo.ExplicitRequired = true
-		} else if strings.HasPrefix(rule, "min=") {
-			fieldInfo.Validations["min"] = strings.TrimPrefix(rule, "min=")
-		} else if strings.HasPrefix(rule, "max=") {
-			fieldInfo.Validations["max"] = strings.TrimPrefix(rule, "max=")
-		} else if strings.HasPrefix(rule, "len=") {
-			fieldInfo.Validations["len"] = strings.TrimPrefix(rule, "len=")
+		} else if v, ok := strings.CutPrefix(rule, "min="); ok {
+			fieldInfo.Validations["min"] = v
+		} else if v, ok := strings.CutPrefix(rule, "max="); ok {
+			fieldInfo.Validations["max"] = v
+		} else if v, ok := strings.CutPrefix(rule, "len="); ok {
+			fieldInfo.Validations["len"] = v
 		} else if rule == "email" {
 			fieldInfo.Validations["format"] = "email"
 		} else if rule == "uuid" {
@@ -619,8 +618,8 @@ func extractSingleLineValue(doc *ast.CommentGroup, directive string) string {
 	}
 
 	for _, comment := range trimComments(doc) {
-		if strings.HasPrefix(comment, directive) {
-			return strings.TrimSpace(strings.TrimPrefix(comment, directive))
+		if value, ok := strings.CutPrefix(comment, directive); ok {
+			return strings.TrimSpace(value)
 		}
 	}
 	return ""

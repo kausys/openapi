@@ -2,6 +2,7 @@ package spec
 
 import (
 	"encoding/json"
+	"maps"
 
 	"gopkg.in/yaml.v3"
 )
@@ -44,9 +45,7 @@ func (r *Responses) MarshalJSON() ([]byte, error) {
 
 	// Add status codes
 	if r.StatusCodes != nil {
-		for code, response := range r.StatusCodes {
-			result[code] = response
-		}
+		maps.Copy(result, r.StatusCodes)
 	}
 
 	// Add default response if present
@@ -92,9 +91,9 @@ func (r *Responses) UnmarshalJSON(data []byte) error {
 
 // MarshalYAML implements the yaml.Marshaler interface.
 // It marshals the StatusCodes map and Default response into a single YAML object.
-func (r *Responses) MarshalYAML() (interface{}, error) {
+func (r *Responses) MarshalYAML() (any, error) {
 	if r == nil {
-		return map[string]interface{}{}, nil
+		return map[string]any{}, nil
 	}
 
 	// Create a map to hold all responses
@@ -102,9 +101,7 @@ func (r *Responses) MarshalYAML() (interface{}, error) {
 
 	// Add status codes
 	if r.StatusCodes != nil {
-		for code, response := range r.StatusCodes {
-			result[code] = response
-		}
+		maps.Copy(result, r.StatusCodes)
 	}
 
 	// Add default response if present

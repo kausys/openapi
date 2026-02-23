@@ -43,28 +43,34 @@ func New(opts ...Option) *Generator {
 	}
 }
 
-// Generate runs the full generation pipeline.
-func (g *Generator) Generate() (*spec.OpenAPI, error) {
-	// Phase 1: Initialize cache
+// prepare initializes cache, scans source files, and caches scanned data.
+func (g *Generator) prepare() error {
 	if g.config.UseCache {
 		if err := g.cache.Init(); err != nil {
-			return nil, fmt.Errorf("failed to initialize cache: %w", err)
+			return fmt.Errorf("failed to initialize cache: %w", err)
 		}
 		if err := g.cache.Load(); err != nil {
-			return nil, fmt.Errorf("failed to load cache: %w", err)
+			return fmt.Errorf("failed to load cache: %w", err)
 		}
 	}
 
-	// Phase 2: Scan source files
 	if err := g.scanner.Scan(); err != nil {
-		return nil, fmt.Errorf("failed to scan source files: %w", err)
+		return fmt.Errorf("failed to scan source files: %w", err)
 	}
 
-	// Phase 3: Cache scanned data
 	if g.config.UseCache {
 		if err := g.cacheScannedData(); err != nil {
-			return nil, fmt.Errorf("failed to cache scanned data: %w", err)
+			return fmt.Errorf("failed to cache scanned data: %w", err)
 		}
+	}
+
+	return nil
+}
+
+// Generate runs the full generation pipeline.
+func (g *Generator) Generate() (*spec.OpenAPI, error) {
+	if err := g.prepare(); err != nil {
+		return nil, err
 	}
 
 	// Phase 4: Assemble OpenAPI spec
@@ -227,10 +233,17 @@ func (g *Generator) markNestedReferences(components *spec.Components) {
 		return
 	}
 
+	processed := make(map[string]bool)
+
 	// Keep marking until no new references are found
 	for {
 		newRefs := false
 		for schemaName := range g.referencedSchemas {
+			if processed[schemaName] {
+				continue
+			}
+			processed[schemaName] = true
+
 			schema, exists := components.Schemas[schemaName]
 			if !exists || schema == nil {
 				continue

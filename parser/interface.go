@@ -2,6 +2,7 @@ package parser
 
 import (
 	"go/ast"
+	"slices"
 )
 
 // TagParser is the interface that all tag/directive parsers must implement.
@@ -96,12 +97,7 @@ func (p *BaseParser) Type() ParserType {
 
 // SupportsContext checks if the parser supports a specific context.
 func (p *BaseParser) SupportsContext(ctx Context) bool {
-	for _, c := range p.contexts {
-		if c == ctx {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(p.contexts, ctx)
 }
 
 // GetSetter returns the setter function for a specific context.
@@ -121,4 +117,3 @@ func (p *BaseParser) ApplyWithSetter(target any, value any, ctx Context) error {
 	}
 	return setter(target, value)
 }
-

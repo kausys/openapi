@@ -45,7 +45,7 @@ func FieldType(t any, handler TypeHandler) {
 // getTypeName returns the package-qualified type name (e.g., "decimal.Decimal").
 func getTypeName(t any) string {
 	rt := reflect.TypeOf(t)
-	if rt.Kind() == reflect.Ptr {
+	if rt.Kind() == reflect.Pointer {
 		rt = rt.Elem()
 	}
 

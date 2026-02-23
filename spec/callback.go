@@ -47,9 +47,9 @@ func (c *Callback) UnmarshalJSON(data []byte) error {
 
 // MarshalYAML implements the yaml.Marshaler interface.
 // It marshals the PathItems map directly as the Callback object.
-func (c *Callback) MarshalYAML() (interface{}, error) {
+func (c *Callback) MarshalYAML() (any, error) {
 	if c == nil || c.PathItems == nil {
-		return map[string]interface{}{}, nil
+		return map[string]any{}, nil
 	}
 	return c.PathItems, nil
 }

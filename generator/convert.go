@@ -1,7 +1,7 @@
 package generator
 
 import (
-	"sort"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -64,7 +64,7 @@ func sortEnumValues(values map[string]any) []any {
 	for k := range values {
 		keys = append(keys, k)
 	}
-	sort.Strings(keys)
+	slices.Sort(keys)
 
 	result := make([]any, 0, len(values))
 	for _, k := range keys {
@@ -77,23 +77,23 @@ func sortEnumValues(values map[string]any) []any {
 func (g *Generator) structToSchema(s *scanner.StructInfo) *spec.Schema {
 	// Handle oneOf/anyOf model schemas (pure composition, no type/properties)
 	if s.IsOneOfModel {
-		return g.oneOfModelToSchema(s)
+		return g.compositionModelToSchema(s, s.OneOfOptions, s.OneOf)
 	}
 	if s.IsAnyOfModel {
-		return g.anyOfModelToSchema(s)
+		return g.compositionModelToSchema(s, s.AnyOfOptions, s.AnyOf)
 	}
 
 	// Handle non-struct underlying types (arrays, maps, primitives)
 	switch s.UnderlyingKind {
 	case scanner.KindArray:
 		return &spec.Schema{
-			Type:        "array",
+			Type:        scanner.TypeArray,
 			Description: s.Description,
 			Items:       g.typeToSchema(s.ElementType),
 		}
 	case scanner.KindMap:
 		return &spec.Schema{
-			Type:                 "object",
+			Type:                 scanner.TypeObject,
 			Description:          s.Description,
 			AdditionalProperties: g.typeToSchema(s.ElementType),
 		}
@@ -106,7 +106,7 @@ func (g *Generator) structToSchema(s *scanner.StructInfo) *spec.Schema {
 	}
 
 	schema := &spec.Schema{
-		Type:        "object",
+		Type:        scanner.TypeObject,
 		Description: s.Description,
 		Properties:  make(map[string]*spec.Schema),
 	}
@@ -160,58 +160,35 @@ func (g *Generator) structToSchema(s *scanner.StructInfo) *spec.Schema {
 	return schema
 }
 
-// oneOfModelToSchema converts a swagger:oneOf model to a pure oneOf schema.
-func (g *Generator) oneOfModelToSchema(s *scanner.StructInfo) *spec.Schema {
+// compositionModelToSchema converts a swagger:oneOf or swagger:anyOf model to a composition schema.
+func (g *Generator) compositionModelToSchema(s *scanner.StructInfo, options []string, refs []string) *spec.Schema {
 	schema := &spec.Schema{
 		Description: s.Description,
 	}
 
-	// Add oneOf options from embedded fields marked with swagger:oneOfOption
-	for _, typeName := range s.OneOfOptions {
+	var schemas []*spec.Schema
+
+	// Add options from embedded fields marked with swagger:oneOfOption/anyOfOption
+	for _, typeName := range options {
 		refName := g.resolveSchemaRef(typeName)
 		g.markSchemaAsReferenced(refName)
-		schema.OneOf = append(schema.OneOf, &spec.Schema{
+		schemas = append(schemas, &spec.Schema{
 			Ref: "#/components/schemas/" + refName,
 		})
 	}
 
-	// Also support legacy inline oneOf: directive
-	for _, ref := range s.OneOf {
+	// Also support legacy inline oneOf:/anyOf: directive
+	for _, ref := range refs {
 		g.markSchemaAsReferenced(ref)
-		schema.OneOf = append(schema.OneOf, &spec.Schema{
+		schemas = append(schemas, &spec.Schema{
 			Ref: "#/components/schemas/" + ref,
 		})
 	}
 
-	// Add discriminator if present
-	if s.Discriminator != nil {
-		schema.Discriminator = g.discriminatorToSpec(s.Discriminator)
-	}
-
-	return schema
-}
-
-// anyOfModelToSchema converts a swagger:anyOf model to a pure anyOf schema.
-func (g *Generator) anyOfModelToSchema(s *scanner.StructInfo) *spec.Schema {
-	schema := &spec.Schema{
-		Description: s.Description,
-	}
-
-	// Add anyOf options from embedded fields marked with swagger:anyOfOption
-	for _, typeName := range s.AnyOfOptions {
-		refName := g.resolveSchemaRef(typeName)
-		g.markSchemaAsReferenced(refName)
-		schema.AnyOf = append(schema.AnyOf, &spec.Schema{
-			Ref: "#/components/schemas/" + refName,
-		})
-	}
-
-	// Also support legacy inline anyOf: directive
-	for _, ref := range s.AnyOf {
-		g.markSchemaAsReferenced(ref)
-		schema.AnyOf = append(schema.AnyOf, &spec.Schema{
-			Ref: "#/components/schemas/" + ref,
-		})
+	if s.IsOneOfModel {
+		schema.OneOf = schemas
+	} else {
+		schema.AnyOf = schemas
 	}
 
 	// Add discriminator if present
@@ -279,7 +256,7 @@ func (g *Generator) fieldToSchema(f *scanner.FieldInfo) *spec.Schema {
 	// Handle arrays
 	if f.IsArray {
 		schema := &spec.Schema{
-			Type:        "array",
+			Type:        scanner.TypeArray,
 			Description: f.Description,
 			Items:       g.typeToSchema(f.Type),
 		}
@@ -289,7 +266,7 @@ func (g *Generator) fieldToSchema(f *scanner.FieldInfo) *spec.Schema {
 	// Handle maps
 	if f.IsMap {
 		schema := &spec.Schema{
-			Type:                 "object",
+			Type:                 scanner.TypeObject,
 			Description:          f.Description,
 			AdditionalProperties: g.typeToSchema(f.Type),
 		}
@@ -446,27 +423,27 @@ func (g *Generator) setSchemaType(schema *spec.Schema, goType string) {
 
 	switch goType {
 	case "string":
-		schema.Type = "string"
+		schema.Type = scanner.TypeString
 	case "int", "int8", "int16", "int32":
-		schema.Type = "integer"
-		schema.Format = "int32"
+		schema.Type = scanner.TypeInteger
+		schema.Format = scanner.FormatInt32
 	case "int64":
-		schema.Type = "integer"
-		schema.Format = "int64"
+		schema.Type = scanner.TypeInteger
+		schema.Format = scanner.FormatInt64
 	case "uint", "uint8", "uint16", "uint32":
-		schema.Type = "integer"
-		schema.Format = "int32"
+		schema.Type = scanner.TypeInteger
+		schema.Format = scanner.FormatInt32
 	case "uint64":
-		schema.Type = "integer"
-		schema.Format = "int64"
+		schema.Type = scanner.TypeInteger
+		schema.Format = scanner.FormatInt64
 	case "float32":
-		schema.Type = "number"
-		schema.Format = "float"
+		schema.Type = scanner.TypeNumber
+		schema.Format = scanner.FormatFloat
 	case "float64":
-		schema.Type = "number"
-		schema.Format = "double"
+		schema.Type = scanner.TypeNumber
+		schema.Format = scanner.FormatDouble
 	case "bool":
-		schema.Type = "boolean"
+		schema.Type = scanner.TypeBoolean
 	default:
 		// Check for package-qualified types
 		if strings.Contains(goType, ".") {
@@ -477,7 +454,7 @@ func (g *Generator) setSchemaType(schema *spec.Schema, goType string) {
 				return
 			}
 		}
-		schema.Type = "string"
+		schema.Type = scanner.TypeString
 	}
 }
 
@@ -489,13 +466,13 @@ func (g *Generator) applyValidations(schema *spec.Schema, f *scanner.FieldInfo) 
 
 	if min, ok := f.Validations["min"]; ok {
 		if v, err := strconv.ParseFloat(min, 64); err == nil {
-			schema.Minimum = &v
+			schema.Minimum = new(v)
 		}
 	}
 
 	if max, ok := f.Validations["max"]; ok {
 		if v, err := strconv.ParseFloat(max, 64); err == nil {
-			schema.Maximum = &v
+			schema.Maximum = new(v)
 		}
 	}
 
@@ -507,7 +484,7 @@ func (g *Generator) applyValidations(schema *spec.Schema, f *scanner.FieldInfo) 
 
 	if maxLen, ok := f.Validations["maxLength"]; ok {
 		if v, err := strconv.ParseUint(maxLen, 10, 64); err == nil {
-			schema.MaxLength = &v
+			schema.MaxLength = new(v)
 		}
 	}
 
@@ -532,7 +509,7 @@ func (g *Generator) routeToOperation(r *scanner.RouteInfo) *spec.Operation {
 			schema := g.typeToSchema(resp.Type)
 			if resp.IsArray {
 				schema = &spec.Schema{
-					Type:  "array",
+					Type:  scanner.TypeArray,
 					Items: schema,
 				}
 			}
@@ -669,7 +646,7 @@ func (g *Generator) fieldToRequestBody(f *scanner.FieldInfo, consumes []string) 
 // inlineStructToSchema converts an inline StructInfo to spec.Schema.
 func (g *Generator) inlineStructToSchema(s *scanner.StructInfo) *spec.Schema {
 	schema := &spec.Schema{
-		Type:        "object",
+		Type:        scanner.TypeObject,
 		Description: s.Description,
 		Properties:  make(map[string]*spec.Schema),
 	}

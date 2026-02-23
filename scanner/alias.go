@@ -4,6 +4,7 @@ import (
 	"go/ast"
 	"go/token"
 	"go/types"
+	"strings"
 
 	"golang.org/x/tools/go/packages"
 )
@@ -79,17 +80,24 @@ func (s *Scanner) resolveOriginalType(t types.Type) string {
 // ResolveTypeAlias resolves a type name to its original type if it's an alias.
 // Returns the original type name, or the input if it's not an alias.
 func (s *Scanner) ResolveTypeAlias(typeName string) string {
-	// Check if this type is an alias
+	return s.resolveTypeAliasWithVisited(typeName, make(map[string]bool))
+}
+
+// resolveTypeAliasWithVisited resolves type aliases with cycle detection.
+func (s *Scanner) resolveTypeAliasWithVisited(typeName string, visited map[string]bool) string {
+	if visited[typeName] {
+		return typeName // cycle detected
+	}
+	visited[typeName] = true
+
 	if original, ok := s.TypeAliases[typeName]; ok {
-		// Recursively resolve in case of chained aliases
-		return s.ResolveTypeAlias(original)
+		return s.resolveTypeAliasWithVisited(original, visited)
 	}
 
-	// Try with short name if the type has a package prefix
-	if idx := lastIndex(typeName, "."); idx >= 0 {
+	if idx := strings.LastIndex(typeName, "."); idx >= 0 {
 		shortName := typeName[idx+1:]
 		if original, ok := s.TypeAliases[shortName]; ok {
-			return s.ResolveTypeAlias(original)
+			return s.resolveTypeAliasWithVisited(original, visited)
 		}
 	}
 
@@ -107,7 +115,7 @@ func (s *Scanner) GetEnumForType(typeName string) *EnumInfo {
 
 	// Try with short name
 	shortName := typeName
-	if idx := lastIndex(typeName, "."); idx >= 0 {
+	if idx := strings.LastIndex(typeName, "."); idx >= 0 {
 		shortName = typeName[idx+1:]
 	}
 
@@ -125,4 +133,3 @@ func (s *Scanner) GetEnumForType(typeName string) *EnumInfo {
 
 	return nil
 }
-

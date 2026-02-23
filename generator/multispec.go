@@ -16,26 +16,8 @@ import (
 // GenerateMulti generates multiple OpenAPI specs based on spec: directives.
 // Returns a map of spec name to OpenAPI spec.
 func (g *Generator) GenerateMulti() (map[string]*spec.OpenAPI, error) {
-	// Phase 1: Initialize cache
-	if g.config.UseCache {
-		if err := g.cache.Init(); err != nil {
-			return nil, fmt.Errorf("failed to initialize cache: %w", err)
-		}
-		if err := g.cache.Load(); err != nil {
-			return nil, fmt.Errorf("failed to load cache: %w", err)
-		}
-	}
-
-	// Phase 2: Scan source files
-	if err := g.scanner.Scan(); err != nil {
-		return nil, fmt.Errorf("failed to scan source files: %w", err)
-	}
-
-	// Phase 3: Cache scanned data
-	if g.config.UseCache {
-		if err := g.cacheScannedData(); err != nil {
-			return nil, fmt.Errorf("failed to cache scanned data: %w", err)
-		}
+	if err := g.prepare(); err != nil {
+		return nil, err
 	}
 
 	// Phase 4: Assemble multiple OpenAPI specs
@@ -341,26 +323,8 @@ func (g *Generator) GetSpecNames() ([]string, error) {
 
 // GenerateSpec generates a single spec by name.
 func (g *Generator) GenerateSpec(specName string) (*spec.OpenAPI, error) {
-	// Phase 1: Initialize cache
-	if g.config.UseCache {
-		if err := g.cache.Init(); err != nil {
-			return nil, fmt.Errorf("failed to initialize cache: %w", err)
-		}
-		if err := g.cache.Load(); err != nil {
-			return nil, fmt.Errorf("failed to load cache: %w", err)
-		}
-	}
-
-	// Phase 2: Scan source files
-	if err := g.scanner.Scan(); err != nil {
-		return nil, fmt.Errorf("failed to scan source files: %w", err)
-	}
-
-	// Phase 3: Cache scanned data
-	if g.config.UseCache {
-		if err := g.cacheScannedData(); err != nil {
-			return nil, fmt.Errorf("failed to cache scanned data: %w", err)
-		}
+	if err := g.prepare(); err != nil {
+		return nil, err
 	}
 
 	// Phase 4: Assemble specific spec

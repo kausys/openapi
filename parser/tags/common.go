@@ -164,7 +164,7 @@ func (p *ListParser) Parse(comments *ast.CommentGroup, ctx parser.Context) (any,
 		if matches := p.pattern.FindStringSubmatch(text); len(matches) > 1 {
 			value := strings.TrimSpace(matches[1])
 			var items []string
-			for _, item := range strings.Split(value, p.separator) {
+			for item := range strings.SplitSeq(value, p.separator) {
 				item = strings.TrimSpace(item)
 				if item != "" {
 					items = append(items, item)
