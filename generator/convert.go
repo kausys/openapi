@@ -295,18 +295,18 @@ func (g *Generator) fieldToSchema(f *scanner.FieldInfo) *spec.Schema {
 		Nullable:    f.Nullable,
 	}
 
-	// Set example
-	if f.Example != "" {
-		schema.Example = f.Example
-	}
-
-	// Set default
-	if f.Default != "" {
-		schema.Default = f.Default
-	}
-
 	g.setSchemaType(schema, f.Type)
 	g.applyValidations(schema, f)
+
+	// Set example (cast to schema type)
+	if f.Example != "" {
+		schema.Example = castToSchemaType(f.Example, schema.Type)
+	}
+
+	// Set default (cast to schema type)
+	if f.Default != "" {
+		schema.Default = castToSchemaType(f.Default, schema.Type)
+	}
 
 	return schema
 }
@@ -456,6 +456,26 @@ func (g *Generator) setSchemaType(schema *spec.Schema, goType string) {
 		}
 		schema.Type = scanner.TypeString
 	}
+}
+
+// castToSchemaType converts a string value to the appropriate Go type
+// based on the OpenAPI schema type, so YAML serialization produces the correct type.
+func castToSchemaType(value, schemaType string) any {
+	switch schemaType {
+	case scanner.TypeInteger:
+		if v, err := strconv.ParseInt(value, 10, 64); err == nil {
+			return v
+		}
+	case scanner.TypeNumber:
+		if v, err := strconv.ParseFloat(value, 64); err == nil {
+			return v
+		}
+	case scanner.TypeBoolean:
+		if v, err := strconv.ParseBool(value); err == nil {
+			return v
+		}
+	}
+	return value
 }
 
 // applyValidations applies validation rules to a schema.
@@ -699,7 +719,7 @@ func (g *Generator) fieldToParameter(f *scanner.FieldInfo, path string) *spec.Pa
 		schema = g.createInlineEnumSchema(enumInfo)
 		// Override example if field has its own
 		if f.Example != "" {
-			schema.Example = f.Example
+			schema.Example = castToSchemaType(f.Example, schema.Type)
 		}
 	} else {
 		schema = &spec.Schema{}
@@ -707,10 +727,10 @@ func (g *Generator) fieldToParameter(f *scanner.FieldInfo, path string) *spec.Pa
 		g.applyValidations(schema, f)
 
 		if f.Example != "" {
-			schema.Example = f.Example
+			schema.Example = castToSchemaType(f.Example, schema.Type)
 		}
 		if f.Default != "" {
-			schema.Default = f.Default
+			schema.Default = castToSchemaType(f.Default, schema.Type)
 		}
 	}
 
