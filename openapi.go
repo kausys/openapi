@@ -73,3 +73,6 @@ var WithValidation = generator.WithValidation
 
 // WithCleanUnused enables or disables removal of unreferenced schemas.
 var WithCleanUnused = generator.WithCleanUnused
+
+// WithEnumRefs enables generating enums as $ref references instead of inline.
+var WithEnumRefs = generator.WithEnumRefs

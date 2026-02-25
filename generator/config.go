@@ -23,6 +23,8 @@ type Config struct {
 	CleanUnused bool
 	// NoDefault skips generating the default spec for routes without spec: directives
 	NoDefault bool
+	// EnumRefs generates enums as $ref references to components/schemas instead of inline
+	EnumRefs bool
 }
 
 // Option is a function type for configuring the Generator.
@@ -89,6 +91,13 @@ func WithCleanUnused(clean bool) Option {
 func WithNoDefault(noDefault bool) Option {
 	return func(c *Config) {
 		c.NoDefault = noDefault
+	}
+}
+
+// WithEnumRefs enables generating enums as $ref references instead of inline.
+func WithEnumRefs(enumRefs bool) Option {
+	return func(c *Config) {
+		c.EnumRefs = enumRefs
 	}
 }
 

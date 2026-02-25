@@ -20,6 +20,10 @@ type Generator struct {
 
 	// referencedSchemas tracks which schemas are actually used in the spec
 	referencedSchemas map[string]bool
+
+	// structsByNameAndSpec indexes structs by model name → spec name → *StructInfo.
+	// The empty string key "" represents the general model (no spec: directive).
+	structsByNameAndSpec map[string]map[string]*scanner.StructInfo
 }
 
 // New creates a new Generator with the given options.
@@ -58,6 +62,9 @@ func (g *Generator) prepare() error {
 		return fmt.Errorf("failed to scan source files: %w", err)
 	}
 
+	// Build secondary index for multi-spec model lookups
+	g.buildStructIndex()
+
 	if g.config.UseCache {
 		if err := g.cacheScannedData(); err != nil {
 			return fmt.Errorf("failed to cache scanned data: %w", err)
@@ -89,34 +96,23 @@ func (g *Generator) Generate() (*spec.OpenAPI, error) {
 	return openAPI, nil
 }
 
-// cacheScannedData saves scanned data to cache.
+// cacheScannedData saves source file mappings to cache.
+// Schema/route conversion is deferred to assemble() to avoid duplicate work.
 func (g *Generator) cacheScannedData() error {
 	// Group schemas and routes by source file (using relative paths)
 	fileSchemas := make(map[string][]string)
 	fileRoutes := make(map[string][]string)
 
-	// Cache schemas and track by source file
-	for name, structInfo := range g.scanner.Structs {
-		schema := g.structToSchema(structInfo)
-		if err := g.cache.SaveSchema(name, schema); err != nil {
-			return err
-		}
-
-		// Track which file this schema came from (convert to relative path)
+	// Track which file each schema came from (convert to relative path)
+	for name := range g.scanner.Structs {
 		if sourceFile, ok := g.scanner.StructSources[name]; ok {
 			relPath := g.toRelativePath(sourceFile)
 			fileSchemas[relPath] = append(fileSchemas[relPath], name)
 		}
 	}
 
-	// Cache routes and track by source file
-	for opID, routeInfo := range g.scanner.Routes {
-		route := g.routeToOperation(routeInfo)
-		if err := g.cache.SaveRoute(opID, route); err != nil {
-			return err
-		}
-
-		// Track which file this route came from (convert to relative path)
+	// Track which file each route came from (convert to relative path)
+	for opID := range g.scanner.Routes {
 		if sourceFile, ok := g.scanner.RouteSources[opID]; ok {
 			relPath := g.toRelativePath(sourceFile)
 			fileRoutes[relPath] = append(fileRoutes[relPath], opID)
@@ -169,28 +165,8 @@ func (g *Generator) assemble() (*spec.OpenAPI, error) {
 		},
 	}
 
-	// Set info from meta
-	if g.scanner.Meta != nil {
-		openAPI.Info = g.metaToInfo(g.scanner.Meta)
-
-		// Add security schemes from meta
-		for name, scheme := range g.scanner.Meta.SecuritySchemes {
-			openAPI.Components.SecuritySchemes[name] = g.securitySchemeToSpec(scheme)
-		}
-
-		// Add tags from meta
-		for _, tag := range g.scanner.Meta.Tags {
-			openAPI.Tags = append(openAPI.Tags, &spec.Tag{
-				Name:        tag.Name,
-				Description: tag.Description,
-			})
-		}
-	} else {
-		openAPI.Info = &spec.Info{
-			Title:   "API",
-			Version: "1.0.0",
-		}
-	}
+	// Set info, security schemes, and tags from meta
+	g.applyMeta(openAPI, g.scanner.Meta, nil)
 
 	// Add schemas (all models first)
 	for name, structInfo := range g.scanner.Structs {
@@ -227,89 +203,66 @@ func (g *Generator) markSchemaAsReferenced(schemaName string) {
 	}
 }
 
-// markNestedReferences recursively marks schemas that are referenced by already-referenced schemas.
+// markNestedReferences uses BFS to mark schemas referenced by already-referenced schemas.
+// Each schema is processed exactly once.
 func (g *Generator) markNestedReferences(components *spec.Components) {
 	if components == nil || components.Schemas == nil {
 		return
 	}
 
-	processed := make(map[string]bool)
+	// Seed queue with currently-referenced schemas
+	queue := make([]string, 0, len(g.referencedSchemas))
+	for name := range g.referencedSchemas {
+		queue = append(queue, name)
+	}
 
-	// Keep marking until no new references are found
-	for {
-		newRefs := false
-		for schemaName := range g.referencedSchemas {
-			if processed[schemaName] {
-				continue
-			}
-			processed[schemaName] = true
+	for len(queue) > 0 {
+		name := queue[0]
+		queue = queue[1:]
 
-			schema, exists := components.Schemas[schemaName]
-			if !exists || schema == nil {
-				continue
-			}
-
-			// Check properties for references
-			for _, propSchema := range schema.Properties {
-				if ref := g.extractSchemaRef(propSchema); ref != "" {
-					if !g.referencedSchemas[ref] {
-						g.referencedSchemas[ref] = true
-						newRefs = true
-					}
-				}
-			}
-
-			// Check array items
-			if schema.Items != nil {
-				if ref := g.extractSchemaRef(schema.Items); ref != "" {
-					if !g.referencedSchemas[ref] {
-						g.referencedSchemas[ref] = true
-						newRefs = true
-					}
-				}
-			}
-
-			// Check additionalProperties
-			if schema.AdditionalProperties != nil {
-				if ref := g.extractSchemaRef(schema.AdditionalProperties); ref != "" {
-					if !g.referencedSchemas[ref] {
-						g.referencedSchemas[ref] = true
-						newRefs = true
-					}
-				}
-			}
-
-			// Check composition schemas
-			for _, s := range schema.AllOf {
-				if ref := g.extractSchemaRef(s); ref != "" {
-					if !g.referencedSchemas[ref] {
-						g.referencedSchemas[ref] = true
-						newRefs = true
-					}
-				}
-			}
-			for _, s := range schema.OneOf {
-				if ref := g.extractSchemaRef(s); ref != "" {
-					if !g.referencedSchemas[ref] {
-						g.referencedSchemas[ref] = true
-						newRefs = true
-					}
-				}
-			}
-			for _, s := range schema.AnyOf {
-				if ref := g.extractSchemaRef(s); ref != "" {
-					if !g.referencedSchemas[ref] {
-						g.referencedSchemas[ref] = true
-						newRefs = true
-					}
-				}
-			}
+		schema, exists := components.Schemas[name]
+		if !exists || schema == nil {
+			continue
 		}
 
-		if !newRefs {
-			break
+		// Collect all refs from this schema and enqueue new ones
+		for _, ref := range g.collectSchemaRefs(schema) {
+			if !g.referencedSchemas[ref] {
+				g.referencedSchemas[ref] = true
+				queue = append(queue, ref)
+			}
 		}
 	}
+}
+
+// collectSchemaRefs returns all schema names referenced by a schema.
+func (g *Generator) collectSchemaRefs(schema *spec.Schema) []string {
+	var refs []string
+	addRef := func(s *spec.Schema) {
+		if ref := g.extractSchemaRef(s); ref != "" {
+			refs = append(refs, ref)
+		}
+	}
+
+	for _, propSchema := range schema.Properties {
+		addRef(propSchema)
+	}
+	if schema.Items != nil {
+		addRef(schema.Items)
+	}
+	if schema.AdditionalProperties != nil {
+		addRef(schema.AdditionalProperties)
+	}
+	for _, s := range schema.AllOf {
+		addRef(s)
+	}
+	for _, s := range schema.OneOf {
+		addRef(s)
+	}
+	for _, s := range schema.AnyOf {
+		addRef(s)
+	}
+	return refs
 }
 
 // extractSchemaRef extracts the schema name from a $ref if present.

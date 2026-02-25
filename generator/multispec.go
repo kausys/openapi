@@ -13,6 +13,25 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// buildStructIndex builds the structsByNameAndSpec index for O(1) lookups.
+// Maps model name → spec name → *StructInfo. Empty string key "" = general model.
+func (g *Generator) buildStructIndex() {
+	g.structsByNameAndSpec = make(map[string]map[string]*scanner.StructInfo)
+	for _, structInfo := range g.scanner.Structs {
+		name := structInfo.Name
+		if _, ok := g.structsByNameAndSpec[name]; !ok {
+			g.structsByNameAndSpec[name] = make(map[string]*scanner.StructInfo)
+		}
+		if len(structInfo.Specs) == 0 {
+			g.structsByNameAndSpec[name][""] = structInfo
+		} else {
+			for _, specName := range structInfo.Specs {
+				g.structsByNameAndSpec[name][specName] = structInfo
+			}
+		}
+	}
+}
+
 // GenerateMulti generates multiple OpenAPI specs based on spec: directives.
 // Returns a map of spec name to OpenAPI spec.
 func (g *Generator) GenerateMulti() (map[string]*spec.OpenAPI, error) {
@@ -102,52 +121,9 @@ func (g *Generator) assembleForSpec(specName string) (*spec.OpenAPI, error) {
 		},
 	}
 
-	// Set info from meta (with inheritance)
+	// Set info, security schemes, and tags from meta (with inheritance from general)
 	meta := g.getMetaForSpec(specName)
-	generalMeta := g.scanner.Meta // Always get the general meta for inheritance
-
-	if meta != nil {
-		openAPI.Info = g.metaToInfo(meta)
-
-		// Add security schemes from meta
-		for name, scheme := range meta.SecuritySchemes {
-			openAPI.Components.SecuritySchemes[name] = g.securitySchemeToSpec(scheme)
-		}
-
-		// Add tags from meta
-		for _, tag := range meta.Tags {
-			openAPI.Tags = append(openAPI.Tags, &spec.Tag{
-				Name:        tag.Name,
-				Description: tag.Description,
-			})
-		}
-	} else if generalMeta != nil {
-		// No specific meta, use general meta completely
-		openAPI.Info = g.metaToInfo(generalMeta)
-
-		for name, scheme := range generalMeta.SecuritySchemes {
-			openAPI.Components.SecuritySchemes[name] = g.securitySchemeToSpec(scheme)
-		}
-
-		for _, tag := range generalMeta.Tags {
-			openAPI.Tags = append(openAPI.Tags, &spec.Tag{
-				Name:        tag.Name,
-				Description: tag.Description,
-			})
-		}
-	} else {
-		openAPI.Info = &spec.Info{
-			Title:   "API",
-			Version: "1.0.0",
-		}
-	}
-
-	// If specific meta doesn't have security schemes, inherit from general meta
-	if len(openAPI.Components.SecuritySchemes) == 0 && generalMeta != nil {
-		for name, scheme := range generalMeta.SecuritySchemes {
-			openAPI.Components.SecuritySchemes[name] = g.securitySchemeToSpec(scheme)
-		}
-	}
+	g.applyMeta(openAPI, meta, g.scanner.Meta)
 
 	// Add routes that belong to this spec
 	// This will mark schemas as referenced via markSchemaAsReferenced
@@ -234,34 +210,24 @@ func (g *Generator) routeBelongsToSpec(route *scanner.RouteInfo, specName string
 
 // getSchemaForSpec returns the appropriate schema for a spec, with override logic.
 // If a model has spec: X, it overrides the general model for spec X.
+// Uses the pre-built structsByNameAndSpec index for O(1) lookups.
 func (g *Generator) getSchemaForSpec(modelName string, specName string) *spec.Schema {
-	var generalModel *scanner.StructInfo
-	var specificModel *scanner.StructInfo
-
-	// Find models with this name
-	for _, structInfo := range g.scanner.Structs {
-		if structInfo.Name != modelName {
-			continue
-		}
-
-		if len(structInfo.Specs) == 0 {
-			// General model (no spec: directive)
-			generalModel = structInfo
-		} else if slices.Contains(structInfo.Specs, specName) {
-			// Model is for our spec
-			specificModel = structInfo
-		}
+	if g.structsByNameAndSpec == nil {
+		g.buildStructIndex()
+	}
+	specMap, ok := g.structsByNameAndSpec[modelName]
+	if !ok {
+		return nil
 	}
 
 	// Priority: specific > general
-	if specificModel != nil {
+	if specificModel, ok := specMap[specName]; ok {
 		return g.structToSchema(specificModel)
 	}
-	if generalModel != nil {
+	if generalModel, ok := specMap[""]; ok {
 		return g.structToSchema(generalModel)
 	}
 
-	// Model not found for this spec
 	return nil
 }
 

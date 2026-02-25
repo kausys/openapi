@@ -20,6 +20,7 @@ var (
 	multiSpec    bool
 	specName     string
 	noDefault    bool
+	enumRefs     bool
 )
 
 func init() {
@@ -35,6 +36,7 @@ func init() {
 	generateCmd.Flags().BoolVar(&multiSpec, "multi-specs", false, "Generate multiple specs based on spec: directives")
 	generateCmd.Flags().StringVar(&specName, "spec", "", "Generate only a specific spec by name")
 	generateCmd.Flags().BoolVar(&noDefault, "no-default", false, "Skip generating the default spec for routes without spec: directives")
+	generateCmd.Flags().BoolVar(&enumRefs, "enum-refs", false, "Generate enums as $ref references instead of inline")
 	rootCmd.AddCommand(generateCmd)
 }
 
@@ -74,6 +76,7 @@ func runGenerate(cmd *cobra.Command, args []string) error {
 		generator.WithIgnorePaths(ignorePaths...),
 		generator.WithCleanUnused(cleanUnused),
 		generator.WithNoDefault(noDefault),
+		generator.WithEnumRefs(enumRefs),
 	)
 
 	if multiSpec {

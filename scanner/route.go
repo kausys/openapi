@@ -29,7 +29,7 @@ func (s *Scanner) processRoutes(filePath string, file *ast.File) error {
 			Path:              path,
 			Tags:              tags,
 			OperationID:       operationID,
-			Summary:           extractSingleLineDirective(funcDecl.Doc, SummaryFieldDirective),
+			Summary:           extractDirectiveValue(funcDecl.Doc, SummaryFieldDirective),
 			Description:       extractRouteDescription(funcDecl.Doc),
 			Deprecated:        hasDirective(funcDecl.Doc, DeprecatedFieldDirective),
 			Responses:         []*ResponseInfo{},
@@ -127,21 +127,6 @@ func tokenizeWithQuotes(s string) []string {
 		tokens = append(tokens, current.String())
 	}
 	return tokens
-}
-
-// extractSingleLineDirective extracts a single-line directive value.
-func extractSingleLineDirective(doc *ast.CommentGroup, directive string) string {
-	if doc == nil {
-		return ""
-	}
-	for _, comment := range doc.List {
-		text := strings.TrimPrefix(comment.Text, "//")
-		text = strings.TrimSpace(text)
-		if after, found := strings.CutPrefix(text, directive); found {
-			return strings.TrimSpace(after)
-		}
-	}
-	return ""
 }
 
 // extractRouteDescription extracts multiline description from route comments.

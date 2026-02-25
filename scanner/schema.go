@@ -529,11 +529,11 @@ func parseFieldDoc(fieldInfo *FieldInfo, doc *ast.CommentGroup) {
 	comments := trimComments(doc)
 
 	// Extract single-line directive values
-	fieldInfo.Example = extractSingleLineValue(doc, ExampleDirective)
-	fieldInfo.Default = extractSingleLineValue(doc, DefaultDirective)
+	fieldInfo.Example = extractDirectiveValue(doc,ExampleDirective)
+	fieldInfo.Default = extractDirectiveValue(doc,DefaultDirective)
 
 	// Handle required directive
-	if requiredValue := extractSingleLineValue(doc, RequiredDirective); requiredValue != "" {
+	if requiredValue := extractDirectiveValue(doc,RequiredDirective); requiredValue != "" {
 		switch requiredValue {
 		case "true":
 			fieldInfo.Required = true
@@ -545,18 +545,18 @@ func parseFieldDoc(fieldInfo *FieldInfo, doc *ast.CommentGroup) {
 	}
 
 	// Extract nullable directive
-	if nullableVal := extractSingleLineValue(doc, NullableDirective); nullableVal == "true" {
+	if nullableVal := extractDirectiveValue(doc,NullableDirective); nullableVal == "true" {
 		fieldInfo.Nullable = true
 	}
 
 	// Extract format directive
-	if format := extractSingleLineValue(doc, FormatDirective); format != "" {
+	if format := extractDirectiveValue(doc,FormatDirective); format != "" {
 		fieldInfo.Validations["format"] = format
 	}
 
 	// Extract in directive (for parameter location)
 	// Handle format like "in:header 'Origin'" - only take the first word (header)
-	if inValue := extractSingleLineValue(doc, InDirective); inValue != "" {
+	if inValue := extractDirectiveValue(doc,InDirective); inValue != "" {
 		// Take only the first word (e.g., "header" from "header 'Origin'")
 		inValue = strings.Fields(inValue)[0]
 		fieldInfo.In = inValue
@@ -568,31 +568,31 @@ func parseFieldDoc(fieldInfo *FieldInfo, doc *ast.CommentGroup) {
 	}
 
 	// Extract numeric constraints
-	if minVal := extractSingleLineValue(doc, MinimumDirective); minVal != "" {
+	if minVal := extractDirectiveValue(doc,MinimumDirective); minVal != "" {
 		fieldInfo.Validations["min"] = minVal
 	}
-	if maxVal := extractSingleLineValue(doc, MaximumDirective); maxVal != "" {
+	if maxVal := extractDirectiveValue(doc,MaximumDirective); maxVal != "" {
 		fieldInfo.Validations["max"] = maxVal
 	}
 
 	// Extract string length constraints
-	if minLenVal := extractSingleLineValue(doc, MinLengthDirective); minLenVal != "" {
+	if minLenVal := extractDirectiveValue(doc,MinLengthDirective); minLenVal != "" {
 		fieldInfo.Validations["minLength"] = minLenVal
 	}
-	if maxLenVal := extractSingleLineValue(doc, MaxLengthDirective); maxLenVal != "" {
+	if maxLenVal := extractDirectiveValue(doc,MaxLengthDirective); maxLenVal != "" {
 		fieldInfo.Validations["maxLength"] = maxLenVal
 	}
 
 	// Extract pattern
-	if pattern := extractSingleLineValue(doc, PatternDirective); pattern != "" {
+	if pattern := extractDirectiveValue(doc,PatternDirective); pattern != "" {
 		fieldInfo.Validations["pattern"] = pattern
 	}
 
 	// Extract array constraints
-	if minItemsVal := extractSingleLineValue(doc, MinItemsDirective); minItemsVal != "" {
+	if minItemsVal := extractDirectiveValue(doc,MinItemsDirective); minItemsVal != "" {
 		fieldInfo.Validations["minItems"] = minItemsVal
 	}
-	if maxItemsVal := extractSingleLineValue(doc, MaxItemsDirective); maxItemsVal != "" {
+	if maxItemsVal := extractDirectiveValue(doc,MaxItemsDirective); maxItemsVal != "" {
 		fieldInfo.Validations["maxItems"] = maxItemsVal
 	}
 	if hasDirective(doc, UniqueItemsDirective) {
@@ -609,20 +609,6 @@ func parseFieldDoc(fieldInfo *FieldInfo, doc *ast.CommentGroup) {
 
 	// Extract description (non-directive lines)
 	fieldInfo.Description = extractFieldDescription(comments, knownFieldDirectives)
-}
-
-// extractSingleLineValue extracts a single-line directive value.
-func extractSingleLineValue(doc *ast.CommentGroup, directive string) string {
-	if doc == nil {
-		return ""
-	}
-
-	for _, comment := range trimComments(doc) {
-		if value, ok := strings.CutPrefix(comment, directive); ok {
-			return strings.TrimSpace(value)
-		}
-	}
-	return ""
 }
 
 // extractFieldDescription extracts description lines, excluding directives.
