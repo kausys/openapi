@@ -132,7 +132,20 @@ func (s *{{$.Service.Name}}Service) {{.Name}}(ctx context.Context{{range .PathPa
 		return {{.ResponseType | zeroValue}}, err
 	}
 
+	{{- if isSlice .ResponseType}}
+	{{- if .ResponseWrapper}}
+	items := data.Get("{{.ResponseWrapper}}").Array()
+	{{- else}}
+	items := data.Array()
+	{{- end}}
+	for i := range result {
+		if i < len(items) {
+			result[i].Raw = items[i].Raw
+		}
+	}
+	{{- else}}
 	result.Raw = raw
+	{{- end}}
 	return result, nil
 {{- else}}
 

@@ -28,6 +28,7 @@ func render(data *SDKData) (map[string][]byte, error) {
 		"zeroValue":  goZeroValue,
 		"baseType":   goBaseType,
 		"isPointer":  isPointerType,
+		"isSlice":    isSliceType,
 		"comment":    formatGoComment,
 		"formatParam": func(p ParamData) string {
 			return formatQueryValue(p.GoName, p.GoType)
@@ -151,6 +152,11 @@ func goBaseType(goType string) string {
 // isPointerType returns true if the type starts with *.
 func isPointerType(goType string) bool {
 	return strings.HasPrefix(goType, "*")
+}
+
+// isSliceType returns true if the type starts with [].
+func isSliceType(goType string) bool {
+	return strings.HasPrefix(goType, "[]")
 }
 
 // formatGoComment converts a multi-line string into Go comment lines.
