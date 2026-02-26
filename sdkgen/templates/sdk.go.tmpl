@@ -12,29 +12,29 @@ import (
 
 // SDK is the root client for the {{.Provider.DisplayName}} API.
 type SDK struct {
-	restyClient *resty.Client
-	cfg         *config.Config
+	cfg    *config.Config
+	client *resty.Client
 {{- range .Services}}
 	{{.FieldName}} *services.{{.Name}}Service
 {{- end}}
 }
 
 // NewSDK creates a new {{.Provider.DisplayName}} SDK instance.
-func NewSDK(cfg *config.Config, restyClient *resty.Client, logger *zap.Logger) *SDK {
+func NewSDK(cfg *config.Config, client *resty.Client, logger *zap.Logger) *SDK {
 	return &SDK{
-		restyClient: restyClient,
-		cfg:         cfg,
+		cfg:    cfg,
+		client: client,
 {{- range .Services}}
-		{{.FieldName}}: services.New{{.Name}}Service(restyClient, logger),
+		{{.FieldName}}: services.New{{.Name}}Service(client, logger),
 {{- end}}
 	}
 }
 
-// RestyClient returns the underlying resty client.
-func (s *SDK) RestyClient() *resty.Client { return s.restyClient }
-
 // Config returns the SDK configuration.
 func (s *SDK) Config() *config.Config { return s.cfg }
+
+// Client returns the underlying resty client.
+func (s *SDK) Client() *resty.Client { return s.client }
 {{range .Services}}
 // {{.Name}} returns the {{.Name}}Service.
 func (s *SDK) {{.Name}}() *services.{{.Name}}Service { return s.{{.FieldName}} }

@@ -29,6 +29,9 @@ func parseSpec(path string) (*spec.OpenAPI, error) {
 	if openAPI.Components.Schemas == nil {
 		openAPI.Components.Schemas = make(map[string]*spec.Schema)
 	}
+	if openAPI.Components.Parameters == nil {
+		openAPI.Components.Parameters = make(map[string]*spec.Parameter)
+	}
 
 	return &openAPI, nil
 }

@@ -57,8 +57,10 @@ type MethodData struct {
 	HasRequestBody  bool
 	RequestBodyType string // e.g., "models.WithdrawalRequest"
 	ResponseType    string // e.g., "*models.Balance" or "[]models.Balance"
-	ResponseWrapper string // gjson path or ""
-	Comment         string
+	ResponseWrapper  string // gjson path or ""
+	Comment          string
+	UseParamsStruct  bool
+	ParamsStructName string // e.g., "GetWalletParams"
 }
 
 // ParamData represents a path or query parameter.
@@ -347,6 +349,32 @@ func operationsFromPathItem(pi *spec.PathItem) []*spec.Operation {
 	return ops
 }
 
+// resolveParameter resolves a $ref parameter to its definition in components/parameters.
+func resolveParameter(param *spec.Parameter, openAPI *spec.OpenAPI) *spec.Parameter {
+	if param.Ref == "" {
+		return param
+	}
+	refName := extractRefName(param.Ref)
+	if openAPI.Components != nil && openAPI.Components.Parameters != nil {
+		if resolved, ok := openAPI.Components.Parameters[refName]; ok {
+			return resolved
+		}
+	}
+	return nil
+}
+
+// shouldUseParamsStruct determines if a method should use a params struct based on config.
+func shouldUseParamsStruct(cfg *SDKGenConfig, operationID string) bool {
+	if cfg.Services.Operations != nil {
+		if override, ok := cfg.Services.Operations[operationID]; ok {
+			if override.ParamsStyle != "" {
+				return override.ParamsStyle == "struct"
+			}
+		}
+	}
+	return cfg.Services.ParamsStyle == "struct"
+}
+
 // transformServices walks paths in the spec and groups operations by first tag.
 func transformServices(sc *schemaConverter, cfg *SDKGenConfig, openAPI *spec.OpenAPI) ([]ServiceData, error) {
 	if openAPI.Paths == nil {
@@ -393,7 +421,7 @@ func transformServices(sc *schemaConverter, cfg *SDKGenConfig, openAPI *spec.Ope
 				}
 			}
 
-			method, err := transformOperation(sc, cfg, path, entry.method, entry.op, pathItem.Parameters)
+			method, err := transformOperation(sc, cfg, openAPI, path, entry.method, entry.op, pathItem.Parameters)
 			if err != nil {
 				return nil, fmt.Errorf("failed to transform operation %s %s: %w", entry.method, path, err)
 			}
@@ -413,7 +441,7 @@ func transformServices(sc *schemaConverter, cfg *SDKGenConfig, openAPI *spec.Ope
 }
 
 // transformOperation converts a single OpenAPI operation into a MethodData.
-func transformOperation(sc *schemaConverter, cfg *SDKGenConfig, path, httpMethod string, op *spec.Operation, pathItemParams []*spec.Parameter) (MethodData, error) {
+func transformOperation(sc *schemaConverter, cfg *SDKGenConfig, openAPI *spec.OpenAPI, path, httpMethod string, op *spec.Operation, pathItemParams []*spec.Parameter) (MethodData, error) {
 	methodName := toPascalCase(op.OperationID)
 	if methodName == "" {
 		methodName = toPascalCase(httpMethod + "_" + strings.ReplaceAll(strings.Trim(path, "/"), "/", "_"))
@@ -425,7 +453,7 @@ func transformOperation(sc *schemaConverter, cfg *SDKGenConfig, path, httpMethod
 		Path:            path,
 		TracerSpan:      cfg.Provider.Name + ".sdk." + methodName,
 		ResponseWrapper: cfg.Services.ResponseWrapper,
-		Comment:         op.Summary,
+		Comment:         operationComment(op),
 	}
 
 	allParams := append([]*spec.Parameter{}, pathItemParams...)
@@ -434,6 +462,12 @@ func transformOperation(sc *schemaConverter, cfg *SDKGenConfig, path, httpMethod
 	for _, param := range allParams {
 		if param == nil {
 			continue
+		}
+		if param.Ref != "" {
+			param = resolveParameter(param, openAPI)
+			if param == nil {
+				continue
+			}
 		}
 		paramType := "string"
 		if param.Schema != nil {
@@ -468,6 +502,11 @@ func transformOperation(sc *schemaConverter, cfg *SDKGenConfig, path, httpMethod
 	}
 
 	method.ResponseType = extractResponseType(sc, op)
+
+	method.UseParamsStruct = shouldUseParamsStruct(cfg, op.OperationID)
+	if method.UseParamsStruct {
+		method.ParamsStructName = method.Name + "Params"
+	}
 
 	return method, nil
 }
@@ -509,6 +548,18 @@ func extractResponseType(sc *schemaConverter, op *spec.Operation) string {
 	}
 
 	return ""
+}
+
+// operationComment builds the comment for a method from the operation's summary and description.
+// If description is present, it combines summary + description. Otherwise, just summary.
+func operationComment(op *spec.Operation) string {
+	if op.Description != "" && op.Summary != "" {
+		return op.Summary + "\n\n" + op.Description
+	}
+	if op.Description != "" {
+		return op.Description
+	}
+	return op.Summary
 }
 
 // sortedKeys returns map keys sorted alphabetically.

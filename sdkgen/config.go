@@ -49,7 +49,14 @@ type ConfigFieldEntry struct {
 
 // ServicesConfig holds service generation configuration.
 type ServicesConfig struct {
-	ResponseWrapper string `yaml:"response_wrapper"` // gjson path to unwrap (empty = use root)
+	ResponseWrapper string                     `yaml:"response_wrapper"` // gjson path to unwrap (empty = use root)
+	ParamsStyle     string                     `yaml:"params_style"`     // "inline" (default) or "struct"
+	Operations      map[string]OperationConfig `yaml:"operations"`
+}
+
+// OperationConfig holds per-operation overrides.
+type OperationConfig struct {
+	ParamsStyle string `yaml:"params_style"` // "inline" or "struct" — overrides services.params_style
 }
 
 // ModelsConfig holds model generation configuration.
@@ -98,6 +105,14 @@ func (c *SDKGenConfig) validate() error {
 	}
 	if c.Config.Prefix == "" {
 		c.Config.Prefix = c.Provider.Name
+	}
+	if c.Services.ParamsStyle != "" && c.Services.ParamsStyle != "inline" && c.Services.ParamsStyle != "struct" {
+		return fmt.Errorf("services.params_style must be 'inline' or 'struct'")
+	}
+	for opID, opCfg := range c.Services.Operations {
+		if opCfg.ParamsStyle != "" && opCfg.ParamsStyle != "inline" && opCfg.ParamsStyle != "struct" {
+			return fmt.Errorf("services.operations.%s.params_style must be 'inline' or 'struct'", opID)
+		}
 	}
 	return nil
 }

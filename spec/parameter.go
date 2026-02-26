@@ -5,6 +5,9 @@ package spec
 //
 // See: https://spec.openapis.org/oas/v3.0.4.html#parameter-object
 type Parameter struct {
+	// A reference to a parameter defined in components/parameters.
+	Ref string `json:"$ref,omitempty" yaml:"$ref,omitempty"`
+
 	// REQUIRED. The name of the parameter. Parameter names are case sensitive.
 	// If in is "path", the name field MUST correspond to a template expression occurring within the
 	// path field in the Paths Object. See Path Templating for further information.

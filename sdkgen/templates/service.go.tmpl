@@ -5,6 +5,8 @@ package services
 import (
 	"context"
 	"encoding/json"
+	"fmt"
+	"strconv"
 
 	"github.com/tidwall/gjson"
 	"go.uber.org/zap"
@@ -12,37 +14,73 @@ import (
 
 	"{{.ModulePath}}/models"
 )
+{{range .Service.Methods}}
+{{- if .UseParamsStruct}}
+
+// {{.ParamsStructName}} holds the parameters for the {{.Name}} operation.
+type {{.ParamsStructName}} struct {
+{{- range .PathParams}}
+	{{.GoName | pascal}} {{.GoType}}
+{{- end}}
+{{- range .QueryParams}}
+	{{.GoName | pascal}} {{.GoType}}
+{{- end}}
+}
+{{- end}}
+{{- end}}
 
 // {{.Service.Name}}Service provides access to {{.Service.Name}} API operations.
 type {{.Service.Name}}Service struct {
-	restyClient *resty.Client
-	logger      *zap.Logger
+	client *resty.Client
+	logger *zap.Logger
 }
 
 // New{{.Service.Name}}Service creates a new {{.Service.Name}}Service instance.
-func New{{.Service.Name}}Service(restyClient *resty.Client, logger *zap.Logger) *{{.Service.Name}}Service {
+func New{{.Service.Name}}Service(client *resty.Client, logger *zap.Logger) *{{.Service.Name}}Service {
 	return &{{.Service.Name}}Service{
-		restyClient: restyClient,
-		logger:      logger,
+		client: client,
+		logger: logger,
 	}
 }
 {{range .Service.Methods}}
 
 {{- if .Comment}}
-// {{.Name}} {{.Comment}}
+{{.Comment | comment (.Name | printf "%s ")}}
 {{- else}}
 // {{.Name}} executes the {{.HTTPMethod}} {{.Path}} operation.
 {{- end}}
-func (s *{{$.Service.Name}}Service) {{.Name}}(ctx context.Context{{range .PathParams}}, {{.GoName}} {{.GoType}}{{end}}{{if .HasRequestBody}}, req {{.RequestBodyType}}{{end}}) ({{if .ResponseType}}{{.ResponseType}}, {{end}}error) {
-	r := s.restyClient.R().
-		SetContext(ctx)
+{{- if .UseParamsStruct}}
+func (s *{{$.Service.Name}}Service) {{.Name}}(ctx context.Context, params {{.ParamsStructName}}{{if .HasRequestBody}}, req {{.RequestBodyType}}{{end}}) ({{if .ResponseType}}{{.ResponseType}}, {{end}}error) {
+{{- else}}
+func (s *{{$.Service.Name}}Service) {{.Name}}(ctx context.Context{{range .PathParams}}, {{.GoName}} {{.GoType}}{{end}}{{range .QueryParams}}, {{.GoName}} {{.GoType}}{{end}}{{if .HasRequestBody}}, req {{.RequestBodyType}}{{end}}) ({{if .ResponseType}}{{.ResponseType}}, {{end}}error) {
+{{- end}}
+	r := s.client.R().SetContext(ctx)
+{{- if .UseParamsStruct}}
 {{- range .PathParams}}
-	r.SetPathParam("{{.Name}}", {{.GoName}})
+	r.SetPathParam("{{.Name}}", {{. | formatParamStruct}})
 {{- end}}
 {{- range .QueryParams}}
-	{{- if .Required}}
-	r.SetQueryParam("{{.Name}}", {{.GoName}})
-	{{- end}}
+{{- if .Required}}
+	r.SetQueryParam("{{.Name}}", {{. | formatParamStruct}})
+{{- else}}
+	if params.{{.GoName | pascal}} != {{.GoType | zeroValue}} {
+		r.SetQueryParam("{{.Name}}", {{. | formatParamStruct}})
+	}
+{{- end}}
+{{- end}}
+{{- else}}
+{{- range .PathParams}}
+	r.SetPathParam("{{.Name}}", {{. | formatParam}})
+{{- end}}
+{{- range .QueryParams}}
+{{- if .Required}}
+	r.SetQueryParam("{{.Name}}", {{. | formatParam}})
+{{- else}}
+	if {{.GoName}} != {{.GoType | zeroValue}} {
+		r.SetQueryParam("{{.Name}}", {{. | formatParam}})
+	}
+{{- end}}
+{{- end}}
 {{- end}}
 {{- if .HasRequestBody}}
 	r.SetBody(req)
@@ -58,6 +96,21 @@ func (s *{{$.Service.Name}}Service) {{.Name}}(ctx context.Context{{range .PathPa
 		s.logger.Error("error while calling {{.Name}}",
 			zap.Error(err),
 			zap.Any("response", data.Value()),
+{{- if .UseParamsStruct}}
+{{- range .PathParams}}
+			zap.String("{{.Name}}", params.{{.GoName | pascal}}),
+{{- end}}
+{{- range .QueryParams}}
+			zap.Any("{{.Name}}", params.{{.GoName | pascal}}),
+{{- end}}
+{{- else}}
+{{- range .PathParams}}
+			zap.String("{{.Name}}", {{.GoName}}),
+{{- end}}
+{{- range .QueryParams}}
+			zap.Any("{{.Name}}", {{.GoName}}),
+{{- end}}
+{{- end}}
 		)
 		return {{if .ResponseType}}{{.ResponseType | zeroValue}}, {{end}}err
 	}

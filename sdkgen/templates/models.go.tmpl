@@ -31,7 +31,7 @@ const (
 
 {{- if .Comment}}
 
-// {{.Name}} {{.Comment}}
+{{.Comment | comment (.Name | printf "%s ")}}
 {{- else}}
 
 // {{.Name}} represents a {{.Name}} object.
@@ -39,7 +39,7 @@ const (
 type {{.Name}} struct {
 {{- range .Fields}}
 	{{- if .Comment}}
-	// {{.Comment}}
+	{{.Comment | comment ""}}
 	{{- end}}
 	{{.Name}} {{.Type}} `json:"{{.JSONTag}}"`
 {{- end}}

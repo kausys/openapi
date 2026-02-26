@@ -9,6 +9,13 @@ paths:
     get:
       operationId: getPokemon
       summary: Get a Pokemon by ID or name
+      description: |-
+        Retrieves detailed information about a specific Pokemon.
+
+        The following data is included:
+        - Base stats (HP, Attack, Defense, etc.)
+        - Types and abilities
+        - Sprite URLs
       tags:
         - pokemon
       parameters:

@@ -28,6 +28,13 @@ func render(data *SDKData) (map[string][]byte, error) {
 		"zeroValue":  goZeroValue,
 		"baseType":   goBaseType,
 		"isPointer":  isPointerType,
+		"comment":    formatGoComment,
+		"formatParam": func(p ParamData) string {
+			return formatQueryValue(p.GoName, p.GoType)
+		},
+		"formatParamStruct": func(p ParamData) string {
+			return formatQueryValue("params."+toPascalCase(p.GoName), p.GoType)
+		},
 	}
 
 	files := make(map[string][]byte)
@@ -144,4 +151,39 @@ func goBaseType(goType string) string {
 // isPointerType returns true if the type starts with *.
 func isPointerType(goType string) bool {
 	return strings.HasPrefix(goType, "*")
+}
+
+// formatGoComment converts a multi-line string into Go comment lines.
+// Each line is prefixed with "// ", and empty lines become "//".
+func formatGoComment(prefix, text string) string {
+	lines := strings.Split(text, "\n")
+	var out []string
+	for _, line := range lines {
+		if strings.TrimSpace(line) == "" {
+			out = append(out, "//")
+		} else {
+			out = append(out, "// "+prefix+line)
+		}
+		prefix = "" // only apply prefix to the first line
+	}
+	return strings.Join(out, "\n")
+}
+
+// formatQueryValue returns a Go expression that converts the given variable to a string
+// suitable for use as a query parameter value.
+func formatQueryValue(expr, goType string) string {
+	switch goType {
+	case "string":
+		return expr
+	case "int":
+		return "strconv.Itoa(" + expr + ")"
+	case "int32":
+		return "strconv.FormatInt(int64(" + expr + "), 10)"
+	case "int64":
+		return "strconv.FormatInt(" + expr + ", 10)"
+	case "bool":
+		return "strconv.FormatBool(" + expr + ")"
+	default:
+		return "fmt.Sprintf(\"%v\", " + expr + ")"
+	}
 }

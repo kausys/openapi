@@ -50,7 +50,7 @@ func TestGenerate_Pokemon(t *testing.T) {
 	sdkStr := string(sdkRoot)
 	assert.Contains(t, sdkStr, "package pokemon")
 	assert.Contains(t, sdkStr, "func NewSDK(")
-	assert.Contains(t, sdkStr, "*resty.Client")
+	assert.Contains(t, sdkStr, "client *resty.Client")
 
 	// Verify generated types.go
 	typesContent, err := os.ReadFile(filepath.Join(tmpDir, "types.go"))
