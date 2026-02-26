@@ -5,7 +5,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![GitHub Sponsors](https://img.shields.io/github/sponsors/kausys?style=social)](https://github.com/sponsors/kausys)
 
-Generate **OpenAPI 3.0.4** specifications from Go source code using swagger-style comments. Features an extensible parser system, multi-spec generation, incremental caching, and a powerful CLI.
+Generate **OpenAPI 3.0.4** specifications from Go source code using swagger-style comments, and generate **Go SDK packages** from any OpenAPI spec. Features an extensible parser system, multi-spec generation, incremental caching, SDK code generation, and a powerful CLI.
 
 ## ✨ Features
 
@@ -16,6 +16,7 @@ Generate **OpenAPI 3.0.4** specifications from Go source code using swagger-styl
 - ⚡ **Incremental Caching** - Only re-process changed files
 - 🧹 **Smart Schema Cleaning** - Only include schemas used by each spec
 - 🎨 **Swagger UI Integration** - Download and serve Swagger UI with multi-spec support
+- 🏗️ **SDK Code Generation** - Generate complete Go SDK packages from any OpenAPI spec
 - 🛠️ **Powerful CLI** - Easy-to-use command-line interface
 
 ## 📦 Installation
@@ -340,6 +341,92 @@ Then run:
 ```bash
 go generate ./pkg/docs
 ```
+
+## 🏗️ SDK Code Generation (sdkgen)
+
+Generate complete Go SDK packages from any OpenAPI specification. The generated SDK follows a standard 4-layer architecture with config, models, services, and a hand-written client layer.
+
+### Usage
+
+```bash
+openapi sdkgen <config.sdkgen.yaml> -o <output-dir>
+```
+
+| Flag | Description |
+|------|-------------|
+| `-o, --output` | Output directory for generated SDK (required) |
+| `--provider` | Override provider name from config (optional) |
+
+### Config File (`.sdkgen.yaml`)
+
+```yaml
+provider:
+  name: xrpscan
+  display_name: XRPScan
+
+spec:
+  path: ./xrpscan.openapi.yaml
+
+output:
+  module_path: api/pkg/sdk/xrpscan
+
+config:
+  prefix: xrpscan
+  fields:
+    - name: APIUrl
+      key: apiUrl
+      type: string
+      default: '"https://api.xrpscan.com"'
+    - name: Timeout
+      key: timeout
+      type: duration
+      default: 30*time.Second
+    - name: IsEnabled
+      key: enabled
+      type: bool
+      default: "true"
+
+services:
+  response_wrapper: ""  # gjson path to unwrap, empty = use root
+```
+
+### Generated Output
+
+```
+<output-dir>/
+├── config/
+│   └── config.go          # Configuration with gookit/config
+├── models/
+│   ├── common.go          # Shared types (grouped by tag)
+│   └── transaction.go     # Domain models
+└── services/
+    └── transaction_service.go  # Service methods per API tag
+```
+
+The following are **hand-written** and not generated:
+- `client/client.go` - HTTP client with resty, middleware chain, auth
+- `client/error.go` - Provider-specific error types
+- `{provider}.go` - Root SDK struct, factory, type aliases
+
+### go:generate Integration
+
+```go
+//go:generate openapi sdkgen ./xrpscan/xrpscan.sdkgen.yml -o ./xrpscan
+package sdk
+```
+
+```bash
+go generate ./pkg/sdk/...
+```
+
+### Config Field Types
+
+| Type | Go Type | gookit Function |
+|------|---------|-----------------|
+| `string` | `string` | `String` |
+| `bool` | `bool` | `Bool` |
+| `int` | `int` | `Int` |
+| `duration` | `time.Duration` | `Duration` |
 
 ## 🔌 Extensible Parser System
 

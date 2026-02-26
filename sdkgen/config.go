@@ -1,0 +1,103 @@
+package sdkgen
+
+import (
+	"fmt"
+	"os"
+
+	"gopkg.in/yaml.v3"
+)
+
+// SDKGenConfig represents the .sdkgen.yaml configuration file.
+type SDKGenConfig struct {
+	Provider ProviderConfig     `yaml:"provider"`
+	Spec     SpecConfig         `yaml:"spec"`
+	Output   OutputConfig       `yaml:"output"`
+	Config   ConfigFieldsConfig `yaml:"config"`
+	Services ServicesConfig     `yaml:"services"`
+	Models   ModelsConfig       `yaml:"models"`
+}
+
+// ProviderConfig holds provider identification.
+type ProviderConfig struct {
+	Name        string `yaml:"name"`         // Package name (e.g., "pokemon")
+	DisplayName string `yaml:"display_name"` // For logs, comments (e.g., "Pokemon")
+}
+
+// SpecConfig holds OpenAPI spec file location.
+type SpecConfig struct {
+	Path string `yaml:"path"` // Path to the OpenAPI YAML spec
+}
+
+// OutputConfig holds module path for the generated SDK.
+type OutputConfig struct {
+	ModulePath string `yaml:"module_path"` // Go module import path for the SDK (e.g., "api/pkg/sdk/pokemon")
+}
+
+// ConfigFieldsConfig holds config generation settings.
+type ConfigFieldsConfig struct {
+	Prefix string             `yaml:"prefix"` // gookit config key prefix (e.g., "pokemon")
+	Fields []ConfigFieldEntry `yaml:"fields"` // Config fields
+}
+
+// ConfigFieldEntry is a single config field.
+type ConfigFieldEntry struct {
+	Name    string `yaml:"name"`    // Go field name (e.g., "APIUrl")
+	Key     string `yaml:"key"`     // gookit config key suffix (e.g., "apiUrl")
+	Type    string `yaml:"type"`    // Go type: "string", "bool", "int", "duration"
+	Default string `yaml:"default"` // Default value expression (optional)
+}
+
+// ServicesConfig holds service generation configuration.
+type ServicesConfig struct {
+	ResponseWrapper string `yaml:"response_wrapper"` // gjson path to unwrap (empty = use root)
+}
+
+// ModelsConfig holds model generation configuration.
+type ModelsConfig struct {
+	CustomTypes map[string]CustomTypeConfig `yaml:"custom_types"`
+}
+
+// CustomTypeConfig maps an OpenAPI format to a Go type.
+type CustomTypeConfig struct {
+	GoType string `yaml:"go_type"` // Full Go type (e.g., "decimal.Decimal")
+	Import string `yaml:"import"`  // Import path (e.g., "github.com/shopspring/decimal")
+}
+
+// LoadSDKGenConfig reads and parses a .sdkgen.yaml file.
+func LoadSDKGenConfig(path string) (*SDKGenConfig, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read config file %s: %w", path, err)
+	}
+
+	var cfg SDKGenConfig
+	if err := yaml.Unmarshal(data, &cfg); err != nil {
+		return nil, fmt.Errorf("failed to parse config file %s: %w", path, err)
+	}
+
+	if err := cfg.validate(); err != nil {
+		return nil, fmt.Errorf("invalid config: %w", err)
+	}
+
+	return &cfg, nil
+}
+
+// validate checks the config for required fields.
+func (c *SDKGenConfig) validate() error {
+	if c.Provider.Name == "" {
+		return fmt.Errorf("provider.name is required")
+	}
+	if c.Provider.DisplayName == "" {
+		c.Provider.DisplayName = toPascalCase(c.Provider.Name)
+	}
+	if c.Spec.Path == "" {
+		return fmt.Errorf("spec.path is required")
+	}
+	if c.Output.ModulePath == "" {
+		return fmt.Errorf("output.module_path is required")
+	}
+	if c.Config.Prefix == "" {
+		c.Config.Prefix = c.Provider.Name
+	}
+	return nil
+}
