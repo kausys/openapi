@@ -155,7 +155,7 @@ func (g *Generator) assemble() (*spec.OpenAPI, error) {
 	g.referencedSchemas = make(map[string]bool)
 
 	openAPI := &spec.OpenAPI{
-		OpenAPI: "3.0.4",
+		OpenAPI: "3.1.2",
 		Paths: &spec.Paths{
 			PathItems: make(map[string]*spec.PathItem),
 		},

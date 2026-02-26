@@ -73,11 +73,19 @@ type ParamData struct {
 
 // ModelFileData represents a single models file (grouped by tag).
 type ModelFileData struct {
-	FileName string // e.g., "balance"
-	Tag      string
-	Structs  []StructData
-	Enums    []EnumData
-	Imports  []ImportData
+	FileName     string // e.g., "balance"
+	Tag          string
+	Structs      []StructData
+	Enums        []EnumData
+	TypeAliases  []TypeAliasData
+	Imports      []ImportData
+}
+
+// TypeAliasData represents a Go type alias (e.g., type Foo = []Bar).
+type TypeAliasData struct {
+	Name    string
+	Type    string
+	Comment string
 }
 
 // StructData represents a Go struct to generate.
@@ -119,6 +127,7 @@ type ImportData struct {
 // transform converts the parsed OpenAPI spec and config into SDKData.
 func transform(cfg *SDKGenConfig, openAPI *spec.OpenAPI) (*SDKData, error) {
 	sc := newSchemaConverter(cfg.Models.CustomTypes)
+	sc.schemas = openAPI.Components.Schemas
 
 	data := &SDKData{
 		Provider: ProviderData{
@@ -221,11 +230,25 @@ func transformModels(sc *schemaConverter, cfg *SDKGenConfig, openAPI *spec.OpenA
 			if enumData != nil {
 				mf.Enums = append(mf.Enums, *enumData)
 			}
-		} else if len(schema.Properties) > 0 {
+		} else if len(schema.Properties) > 0 || len(schema.AllOf) > 0 {
 			structData := sc.schemaToStruct(name, schema)
 			if structData != nil {
 				mf.Structs = append(mf.Structs, *structData)
 			}
+		} else if schema.Type.Value() == "object" {
+			// Empty object schema — generate an empty struct
+			mf.Structs = append(mf.Structs, StructData{
+				Name:    name,
+				Comment: schema.Description,
+			})
+		} else if schema.Type.Value() == "array" && schema.Items != nil {
+			// Top-level array schema — generate a type alias
+			itemType := sc.goType(schema.Items, true)
+			mf.TypeAliases = append(mf.TypeAliases, TypeAliasData{
+				Name:    name,
+				Type:    "[]" + itemType,
+				Comment: schema.Description,
+			})
 		}
 	}
 
@@ -237,7 +260,7 @@ func transformModels(sc *schemaConverter, cfg *SDKGenConfig, openAPI *spec.OpenA
 	tagNames := sortedKeys(tagModels)
 	for _, tag := range tagNames {
 		mf := tagModels[tag]
-		if len(mf.Structs) > 0 || len(mf.Enums) > 0 {
+		if len(mf.Structs) > 0 || len(mf.Enums) > 0 || len(mf.TypeAliases) > 0 {
 			mf.Imports = commonImports
 			models = append(models, *mf)
 		}
@@ -529,7 +552,7 @@ func extractResponseType(sc *schemaConverter, op *spec.Operation) string {
 			}
 			schema := mt.Schema
 
-			if schema.Type == "array" && schema.Items != nil {
+			if schema.Type.Value() == "array" && schema.Items != nil {
 				if schema.Items.Ref != "" {
 					return "[]models." + extractRefName(schema.Items.Ref)
 				}
@@ -537,7 +560,18 @@ func extractResponseType(sc *schemaConverter, op *spec.Operation) string {
 			}
 
 			if schema.Ref != "" {
-				return "models." + extractRefName(schema.Ref)
+				refName := extractRefName(schema.Ref)
+				// If the referenced schema is a top-level array, expand to slice type
+				// so the service template handles it as a slice (nil zero value, no .Raw).
+				if sc.schemas != nil {
+					if refSchema, ok := sc.schemas[refName]; ok && refSchema.Type.Value() == "array" && refSchema.Items != nil {
+						if refSchema.Items.Ref != "" {
+							return "[]models." + extractRefName(refSchema.Items.Ref)
+						}
+						return "[]" + sc.goType(refSchema.Items, true)
+					}
+				}
+				return "models." + refName
 			}
 
 			goType := sc.goType(schema, true)

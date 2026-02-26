@@ -21,9 +21,12 @@ func (g *Generator) fieldToSchema(f *scanner.FieldInfo) *spec.Schema {
 	// Handle arrays
 	if f.IsArray {
 		schema := &spec.Schema{
-			Type:        scanner.TypeArray,
+			Type:        spec.NewSchemaType(scanner.TypeArray),
 			Description: f.Description,
 			Items:       g.typeToSchema(f.Type),
+		}
+		if f.Nullable {
+			schema.Type = schema.Type.WithNull()
 		}
 		return schema
 	}
@@ -31,15 +34,17 @@ func (g *Generator) fieldToSchema(f *scanner.FieldInfo) *spec.Schema {
 	// Handle maps
 	if f.IsMap {
 		schema := &spec.Schema{
-			Type:                 scanner.TypeObject,
+			Type:                 spec.NewSchemaType(scanner.TypeObject),
 			Description:          f.Description,
 			AdditionalProperties: g.typeToSchema(f.Type),
+		}
+		if f.Nullable {
+			schema.Type = schema.Type.WithNull()
 		}
 		return schema
 	}
 
 	// Check if this is a reference type (model or enum)
-	// In OpenAPI 3.0.x, $ref cannot have other properties
 	if g.isReferenceType(f.Type) {
 		schema := g.typeToSchema(f.Type)
 		// For enums, apply field-level overrides (description, example)
@@ -48,7 +53,7 @@ func (g *Generator) fieldToSchema(f *scanner.FieldInfo) *spec.Schema {
 				schema.Description = f.Description
 			}
 			if f.Example != "" {
-				schema.Example = f.Example
+				schema.Examples = []any{f.Example}
 			}
 		}
 		return schema
@@ -57,15 +62,19 @@ func (g *Generator) fieldToSchema(f *scanner.FieldInfo) *spec.Schema {
 	// Handle basic/primitive types
 	schema := &spec.Schema{
 		Description: f.Description,
-		Nullable:    f.Nullable,
 	}
 
 	g.setSchemaType(schema, f.Type)
+
+	if f.Nullable {
+		schema.Type = schema.Type.WithNull()
+	}
+
 	g.applyValidations(schema, f)
 
 	// Set example (cast to schema type)
 	if f.Example != "" {
-		schema.Example = castToSchemaType(f.Example, schema.Type)
+		schema.Examples = []any{castToSchemaType(f.Example, schema.Type)}
 	}
 
 	// Set default (cast to schema type)
@@ -105,7 +114,7 @@ func (g *Generator) fieldToParameter(f *scanner.FieldInfo, path string) *spec.Pa
 			schema = g.createInlineEnumSchema(enumInfo)
 			// Override example if field has its own
 			if f.Example != "" {
-				schema.Example = castToSchemaType(f.Example, schema.Type)
+				schema.Examples = []any{castToSchemaType(f.Example, schema.Type)}
 			}
 		}
 	} else {
@@ -114,7 +123,7 @@ func (g *Generator) fieldToParameter(f *scanner.FieldInfo, path string) *spec.Pa
 		g.applyValidations(schema, f)
 
 		if f.Example != "" {
-			schema.Example = castToSchemaType(f.Example, schema.Type)
+			schema.Examples = []any{castToSchemaType(f.Example, schema.Type)}
 		}
 		if f.Default != "" {
 			schema.Default = castToSchemaType(f.Default, schema.Type)
@@ -135,7 +144,11 @@ func (g *Generator) fieldToParameter(f *scanner.FieldInfo, path string) *spec.Pa
 // applyValidations applies validation rules to a schema.
 func (g *Generator) applyValidations(schema *spec.Schema, f *scanner.FieldInfo) {
 	if format, ok := f.Validations["format"]; ok {
-		schema.Format = format
+		if format == scanner.FormatBinary {
+			schema.ContentMediaType = "application/octet-stream"
+		} else {
+			schema.Format = format
+		}
 	}
 
 	if min, ok := f.Validations["min"]; ok {

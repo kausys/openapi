@@ -51,7 +51,7 @@ func (g *Generator) fieldToRequestBody(f *scanner.FieldInfo, consumes []string) 
 // inlineStructToSchema converts an inline StructInfo to spec.Schema.
 func (g *Generator) inlineStructToSchema(s *scanner.StructInfo) *spec.Schema {
 	schema := &spec.Schema{
-		Type:        scanner.TypeObject,
+		Type:        spec.NewSchemaType(scanner.TypeObject),
 		Description: s.Description,
 		Properties:  make(map[string]*spec.Schema),
 	}

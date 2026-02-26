@@ -44,7 +44,7 @@ var generateCmd = &cobra.Command{
 	Use:   "generate",
 	Short: "Generate OpenAPI specification from Go source code",
 	Long: `Generate scans Go source code for swagger directives and generates
-an OpenAPI 3.0.4 specification.
+an OpenAPI 3.1 specification.
 
 Supported directives:
   swagger:meta       - API metadata (title, version, description)

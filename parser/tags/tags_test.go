@@ -391,7 +391,8 @@ func TestExampleParser(t *testing.T) {
 
 	err = p.Apply(schema, value, parser.ContextModel)
 	require.NoError(t, err)
-	assert.Equal(t, "John Doe", schema.Example)
+	require.Len(t, schema.Examples, 1)
+	assert.Equal(t, "John Doe", schema.Examples[0])
 }
 
 func TestRequiredParser(t *testing.T) {

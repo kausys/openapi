@@ -15,14 +15,14 @@ func NewExampleParser() *SingleLineParser {
 	}, parser.SetterMap{
 		parser.ContextModel: func(target any, value any) error {
 			if schema, ok := target.(*spec.Schema); ok {
-				schema.Example = value
+				schema.Examples = append(schema.Examples, value)
 				return nil
 			}
 			return &parser.ErrInvalidTarget{ParserName: "example", ExpectedType: "*spec.Schema", ActualType: fmt.Sprintf("%T", target)}
 		},
 		parser.ContextField: func(target any, value any) error {
 			if schema, ok := target.(*spec.Schema); ok {
-				schema.Example = value
+				schema.Examples = append(schema.Examples, value)
 				return nil
 			}
 			return &parser.ErrInvalidTarget{ParserName: "example", ExpectedType: "*spec.Schema", ActualType: fmt.Sprintf("%T", target)}

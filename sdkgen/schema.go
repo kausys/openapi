@@ -11,7 +11,8 @@ import (
 // schemaConverter handles OpenAPI schema → Go type conversions.
 type schemaConverter struct {
 	customTypes map[string]CustomTypeConfig
-	imports     map[string]string // import path → alias (or "")
+	imports     map[string]string            // import path → alias (or "")
+	schemas     map[string]*spec.Schema      // components/schemas for $ref resolution
 }
 
 func newSchemaConverter(customTypes map[string]CustomTypeConfig) *schemaConverter {
@@ -45,7 +46,7 @@ func (sc *schemaConverter) goType(schema *spec.Schema, required bool) string {
 		}
 	}
 
-	switch schema.Type {
+	switch schema.Type.Value() {
 	case "string":
 		return sc.stringType(schema)
 	case "integer":
@@ -145,21 +146,54 @@ func extractRefName(ref string) string {
 }
 
 // schemaToStruct converts a named OpenAPI schema with properties into a StructData.
+// Supports allOf composition by merging properties from all sub-schemas.
 func (sc *schemaConverter) schemaToStruct(name string, schema *spec.Schema) *StructData {
-	if schema == nil || len(schema.Properties) == 0 {
+	if schema == nil {
 		return nil
 	}
 
+	// Merge properties and required fields from allOf sub-schemas
+	mergedProps := make(map[string]*spec.Schema)
 	requiredSet := make(map[string]bool)
+
+	// Collect from allOf first
+	for _, sub := range schema.AllOf {
+		if sub == nil {
+			continue
+		}
+		resolved := sub
+		// Resolve $ref to the actual schema from components/schemas
+		if sub.Ref != "" && sc.schemas != nil {
+			refName := extractRefName(sub.Ref)
+			if refSchema, ok := sc.schemas[refName]; ok {
+				resolved = refSchema
+			}
+		}
+		for propName, propSchema := range resolved.Properties {
+			mergedProps[propName] = propSchema
+		}
+		for _, r := range resolved.Required {
+			requiredSet[r] = true
+		}
+	}
+
+	// Then collect direct properties (override allOf if same name)
+	for propName, propSchema := range schema.Properties {
+		mergedProps[propName] = propSchema
+	}
 	for _, r := range schema.Required {
 		requiredSet[r] = true
 	}
 
+	if len(mergedProps) == 0 {
+		return nil
+	}
+
 	var fields []FieldData
 	// Sort property names for deterministic output
-	propNames := sortedKeys(schema.Properties)
+	propNames := sortedKeys(mergedProps)
 	for _, propName := range propNames {
-		propSchema := schema.Properties[propName]
+		propSchema := mergedProps[propName]
 		isRequired := requiredSet[propName]
 
 		goFieldType := sc.goType(propSchema, isRequired)

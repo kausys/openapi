@@ -1,4 +1,4 @@
-// Package openapi provides a Go library for generating OpenAPI 3.0.4 specifications
+// Package openapi provides a Go library for generating OpenAPI 3.1 specifications
 // from Go source code using swagger directives.
 //
 // # Quick Start
@@ -44,7 +44,7 @@ type Option = generator.Option
 
 // Generate creates an OpenAPI specification from Go source code.
 // It scans the specified packages for swagger directives and generates
-// a complete OpenAPI 3.0.4 specification.
+// a complete OpenAPI 3.1 specification.
 func Generate(opts ...Option) (*spec.OpenAPI, error) {
 	gen := generator.New(opts...)
 	return gen.Generate()

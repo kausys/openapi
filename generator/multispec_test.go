@@ -422,7 +422,7 @@ func TestAssembleForSpec(t *testing.T) {
 
 			require.NoError(t, err)
 			require.NotNil(t, result)
-			assert.Equal(t, "3.0.4", result.OpenAPI)
+			assert.Equal(t, "3.1.2", result.OpenAPI)
 			assert.Equal(t, tt.expectedTitle, result.Info.Title)
 			assert.Equal(t, tt.expectedPaths, len(result.Paths.PathItems))
 		})
@@ -572,7 +572,7 @@ func TestWriteMultiOutput(t *testing.T) {
 			outputFile:   "output/specs.yaml",
 			outputFormat: "yaml",
 			specs: map[string]*spec.OpenAPI{
-				"admin": {OpenAPI: "3.0.4", Info: &spec.Info{Title: "Admin API", Version: "1.0.0"}},
+				"admin": {OpenAPI: "3.1.2", Info: &spec.Info{Title: "Admin API", Version: "1.0.0"}},
 			},
 			expectFiles: []string{"admin.yaml"},
 		},
@@ -581,8 +581,8 @@ func TestWriteMultiOutput(t *testing.T) {
 			outputFile:   "output/specs.yaml",
 			outputFormat: "yaml",
 			specs: map[string]*spec.OpenAPI{
-				"admin":  {OpenAPI: "3.0.4", Info: &spec.Info{Title: "Admin API", Version: "1.0.0"}},
-				"public": {OpenAPI: "3.0.4", Info: &spec.Info{Title: "Public API", Version: "1.0.0"}},
+				"admin":  {OpenAPI: "3.1.2", Info: &spec.Info{Title: "Admin API", Version: "1.0.0"}},
+				"public": {OpenAPI: "3.1.2", Info: &spec.Info{Title: "Public API", Version: "1.0.0"}},
 			},
 			expectFiles: []string{"admin.yaml", "public.yaml"},
 		},
@@ -591,7 +591,7 @@ func TestWriteMultiOutput(t *testing.T) {
 			outputFile:   "output/specs.json",
 			outputFormat: "json",
 			specs: map[string]*spec.OpenAPI{
-				"admin": {OpenAPI: "3.0.4", Info: &spec.Info{Title: "Admin API", Version: "1.0.0"}},
+				"admin": {OpenAPI: "3.1.2", Info: &spec.Info{Title: "Admin API", Version: "1.0.0"}},
 			},
 			expectFiles: []string{"admin.json"},
 		},
@@ -629,7 +629,7 @@ func TestWriteMultiOutputNoExtension(t *testing.T) {
 	g.config.OutputFormat = "yaml"
 
 	specs := map[string]*spec.OpenAPI{
-		"admin": {OpenAPI: "3.0.4", Info: &spec.Info{Title: "Admin API", Version: "1.0.0"}},
+		"admin": {OpenAPI: "3.1.2", Info: &spec.Info{Title: "Admin API", Version: "1.0.0"}},
 	}
 
 	err := g.writeMultiOutput(specs)
@@ -1071,7 +1071,7 @@ func ListUsers() {}
 	// Check public spec exists and has valid structure
 	if publicSpec, ok := specs["public"]; ok {
 		require.NotNil(t, publicSpec.Info)
-		assert.Equal(t, "3.0.4", publicSpec.OpenAPI)
+		assert.Equal(t, "3.1.2", publicSpec.OpenAPI)
 		// Version should be set (either from meta or default "1.0.0")
 		assert.NotEmpty(t, publicSpec.Info.Version)
 	}
@@ -1109,7 +1109,7 @@ func ListPublicUsers() {}
 
 	require.NoError(t, err)
 	require.NotNil(t, adminSpec)
-	assert.Equal(t, "3.0.4", adminSpec.OpenAPI)
+	assert.Equal(t, "3.1.2", adminSpec.OpenAPI)
 
 	// Should only contain admin routes
 	if adminSpec.Paths != nil {
@@ -1405,7 +1405,7 @@ func TestWriteMultiOutputMarshalError(t *testing.T) {
 
 	// Create a valid spec - this should succeed
 	specs := map[string]*spec.OpenAPI{
-		"test": {OpenAPI: "3.0.4", Info: &spec.Info{Title: "Test", Version: "1.0.0"}},
+		"test": {OpenAPI: "3.1.2", Info: &spec.Info{Title: "Test", Version: "1.0.0"}},
 	}
 
 	err := g.writeMultiOutput(specs)
@@ -1461,7 +1461,7 @@ func ListAdminUsers() {}
 
 	require.NoError(t, err)
 	require.NotNil(t, adminSpec)
-	assert.Equal(t, "3.0.4", adminSpec.OpenAPI)
+	assert.Equal(t, "3.1.2", adminSpec.OpenAPI)
 }
 
 // TestGenerateSpecCaseInsensitive tests that spec names are case-insensitive
@@ -1630,7 +1630,7 @@ func TestWriteMultiOutputDirectoryCreationError(t *testing.T) {
 	g.config.OutputFormat = "yaml"
 
 	specs := map[string]*spec.OpenAPI{
-		"test": {OpenAPI: "3.0.4", Info: &spec.Info{Title: "Test", Version: "1.0.0"}},
+		"test": {OpenAPI: "3.1.2", Info: &spec.Info{Title: "Test", Version: "1.0.0"}},
 	}
 
 	err := g.writeMultiOutput(specs)
@@ -1815,7 +1815,7 @@ func TestEnumToSchema(t *testing.T) {
 				},
 			},
 			expected: &spec.Schema{
-				Type:        "string",
+				Type:        spec.NewSchemaType("string"),
 				Description: "Status enum",
 			},
 		},
@@ -1830,7 +1830,7 @@ func TestEnumToSchema(t *testing.T) {
 				},
 			},
 			expected: &spec.Schema{
-				Type: "integer",
+				Type: spec.NewSchemaType("integer"),
 			},
 		},
 		{
@@ -1844,8 +1844,8 @@ func TestEnumToSchema(t *testing.T) {
 				Example: "red",
 			},
 			expected: &spec.Schema{
-				Type:    "string",
-				Example: "red",
+				Type:     spec.NewSchemaType("string"),
+				Examples: []any{"red"},
 			},
 		},
 	}
@@ -1855,8 +1855,8 @@ func TestEnumToSchema(t *testing.T) {
 			result := g.enumToSchema(tt.enum)
 			assert.Equal(t, tt.expected.Type, result.Type)
 			assert.Equal(t, tt.expected.Description, result.Description)
-			if tt.expected.Example != nil {
-				assert.Equal(t, tt.expected.Example, result.Example)
+			if len(tt.expected.Examples) > 0 {
+				assert.Equal(t, tt.expected.Examples, result.Examples)
 			}
 			assert.Len(t, result.Enum, len(tt.enum.Values))
 		})
@@ -1891,7 +1891,7 @@ func TestStructToSchema(t *testing.T) {
 				},
 			},
 			expected: &spec.Schema{
-				Type:        "object",
+				Type:        spec.NewSchemaType("object"),
 				Description: "User model",
 			},
 		},
@@ -1909,7 +1909,7 @@ func TestStructToSchema(t *testing.T) {
 				},
 			},
 			expected: &spec.Schema{
-				Type:     "object",
+				Type:     spec.NewSchemaType("object"),
 				Required: []string{"name"},
 			},
 		},
@@ -1948,7 +1948,7 @@ func TestSetSchemaType(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			schema := &spec.Schema{}
 			g.setSchemaType(schema, tt.goType)
-			assert.Equal(t, tt.expectedType, schema.Type)
+			assert.Equal(t, tt.expectedType, schema.Type.Value())
 			if tt.expectedFmt != "" {
 				assert.Equal(t, tt.expectedFmt, schema.Format)
 			}

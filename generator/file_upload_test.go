@@ -55,13 +55,14 @@ func UploadFile() {}
 	require.NotNil(t, multipartContent.Schema)
 
 	// Schema should be type: object
-	assert.Equal(t, "object", multipartContent.Schema.Type)
+	assert.Equal(t, "object", multipartContent.Schema.Type.Value())
 
 	// Should have 'file' property
 	fileSchema, ok := multipartContent.Schema.Properties["file"]
 	require.True(t, ok, "Should have 'file' property")
-	assert.Equal(t, "string", fileSchema.Type)
-	assert.Equal(t, "binary", fileSchema.Format)
+	assert.Equal(t, "string", fileSchema.Type.Value())
+	assert.Equal(t, "application/octet-stream", fileSchema.ContentMediaType)
+	assert.Equal(t, "", fileSchema.Format)
 
 	// Should have encoding for the file field
 	require.NotNil(t, multipartContent.Encoding)
@@ -119,9 +120,11 @@ func UploadMultipleFiles() {}
 	assert.Contains(t, multipartContent.Schema.Properties, "avatar")
 	assert.Contains(t, multipartContent.Schema.Properties, "document")
 
-	// Both should be binary format
-	assert.Equal(t, "binary", multipartContent.Schema.Properties["avatar"].Format)
-	assert.Equal(t, "binary", multipartContent.Schema.Properties["document"].Format)
+	// Both should use contentMediaType instead of format: binary
+	assert.Equal(t, "application/octet-stream", multipartContent.Schema.Properties["avatar"].ContentMediaType)
+	assert.Equal(t, "", multipartContent.Schema.Properties["avatar"].Format)
+	assert.Equal(t, "application/octet-stream", multipartContent.Schema.Properties["document"].ContentMediaType)
+	assert.Equal(t, "", multipartContent.Schema.Properties["document"].Format)
 
 	// Should have encoding for both fields
 	assert.Contains(t, multipartContent.Encoding, "avatar")
@@ -179,10 +182,11 @@ func UploadWithMetadata() {}
 	assert.Contains(t, multipartContent.Schema.Properties, "description")
 	assert.Contains(t, multipartContent.Schema.Properties, "tags")
 
-	// Only 'file' should have binary format
-	assert.Equal(t, "binary", multipartContent.Schema.Properties["file"].Format)
-	assert.Equal(t, "string", multipartContent.Schema.Properties["description"].Type)
-	assert.Equal(t, "array", multipartContent.Schema.Properties["tags"].Type)
+	// Only 'file' should have contentMediaType (not format: binary)
+	assert.Equal(t, "application/octet-stream", multipartContent.Schema.Properties["file"].ContentMediaType)
+	assert.Equal(t, "", multipartContent.Schema.Properties["file"].Format)
+	assert.Equal(t, "string", multipartContent.Schema.Properties["description"].Type.Value())
+	assert.Equal(t, "array", multipartContent.Schema.Properties["tags"].Type.Value())
 
 	// Only 'file' should have encoding
 	require.NotNil(t, multipartContent.Encoding)
@@ -348,8 +352,9 @@ func UploadDocument() {}
 	assert.Contains(t, multipartContent.Schema.Properties, "file")
 	assert.Contains(t, multipartContent.Schema.Properties, "description")
 
-	// File should have binary format
-	assert.Equal(t, "binary", multipartContent.Schema.Properties["file"].Format)
+	// File should have contentMediaType instead of format: binary
+	assert.Equal(t, "application/octet-stream", multipartContent.Schema.Properties["file"].ContentMediaType)
+	assert.Equal(t, "", multipartContent.Schema.Properties["file"].Format)
 
 	// Should have encoding for file
 	require.NotNil(t, multipartContent.Encoding)

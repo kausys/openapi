@@ -4,10 +4,12 @@ package spec
 // The metadata MAY be used by the clients if needed, and MAY be presented in editing or
 // documentation generation tools for convenience.
 //
-// See: https://spec.openapis.org/oas/v3.0.4.html#info-object
+// See: https://spec.openapis.org/oas/v3.1.1.html#info-object
 type Info struct {
 	// REQUIRED. The title of the API.
 	Title string `json:"title" yaml:"title"`
+	// A short summary of the API.
+	Summary string `json:"summary,omitempty" yaml:"summary,omitempty"`
 	// A description of the API. CommonMark syntax MAY be used for rich text representation.
 	Description string `json:"description,omitempty" yaml:"description,omitempty"`
 	// A URL for the Terms of Service for the API. This MUST be in the form of a URL.

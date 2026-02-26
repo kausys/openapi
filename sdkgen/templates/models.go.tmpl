@@ -27,6 +27,17 @@ const (
 {{- end}}
 )
 {{- end}}
+{{- range .ModelFile.TypeAliases}}
+
+{{- if .Comment}}
+
+{{.Comment | comment (.Name | printf "%s ")}}
+{{- else}}
+
+// {{.Name}} represents a {{.Name}} type.
+{{- end}}
+type {{.Name}} {{.Type}}
+{{- end}}
 {{- range .ModelFile.Structs}}
 
 {{- if .Comment}}

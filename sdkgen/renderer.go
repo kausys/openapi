@@ -36,6 +36,11 @@ func render(data *SDKData) (map[string][]byte, error) {
 		"formatParamStruct": func(p ParamData) string {
 			return formatQueryValue("params."+toPascalCase(p.GoName), p.GoType)
 		},
+		"isPrimitiveSlice": isPrimitiveSlice,
+		"zapField": zapFieldFunc,
+		"zapFieldStruct": func(p ParamData) string {
+			return zapFieldExpr(p.Name, "params."+toPascalCase(p.GoName), p.GoType)
+		},
 	}
 
 	files := make(map[string][]byte)
@@ -159,6 +164,20 @@ func isSliceType(goType string) bool {
 	return strings.HasPrefix(goType, "[]")
 }
 
+// isPrimitiveSlice returns true if the type is a slice of primitive types (no .Raw field).
+func isPrimitiveSlice(goType string) bool {
+	if !strings.HasPrefix(goType, "[]") {
+		return false
+	}
+	elemType := goType[2:]
+	switch elemType {
+	case "string", "int", "int32", "int64", "float32", "float64", "bool", "any":
+		return true
+	default:
+		return false
+	}
+}
+
 // formatGoComment converts a multi-line string into Go comment lines.
 // Each line is prefixed with "// ", and empty lines become "//".
 func formatGoComment(prefix, text string) string {
@@ -173,6 +192,33 @@ func formatGoComment(prefix, text string) string {
 		prefix = "" // only apply prefix to the first line
 	}
 	return strings.Join(out, "\n")
+}
+
+// zapFieldFunc returns a zap field expression for a ParamData using its GoName.
+func zapFieldFunc(p ParamData) string {
+	return zapFieldExpr(p.Name, p.GoName, p.GoType)
+}
+
+// zapFieldExpr returns the appropriate zap.Field call for a given type.
+func zapFieldExpr(name, expr, goType string) string {
+	switch goType {
+	case "int":
+		return fmt.Sprintf("zap.Int(%q, %s)", name, expr)
+	case "int32":
+		return fmt.Sprintf("zap.Int32(%q, %s)", name, expr)
+	case "int64":
+		return fmt.Sprintf("zap.Int64(%q, %s)", name, expr)
+	case "float32":
+		return fmt.Sprintf("zap.Float32(%q, %s)", name, expr)
+	case "float64":
+		return fmt.Sprintf("zap.Float64(%q, %s)", name, expr)
+	case "bool":
+		return fmt.Sprintf("zap.Bool(%q, %s)", name, expr)
+	case "string":
+		return fmt.Sprintf("zap.String(%q, %s)", name, expr)
+	default:
+		return fmt.Sprintf("zap.Any(%q, %s)", name, expr)
+	}
 }
 
 // formatQueryValue returns a Go expression that converts the given variable to a string

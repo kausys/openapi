@@ -283,7 +283,7 @@ func TestManagerSaveAndLoadSchema(t *testing.T) {
 	require.NoError(t, m.Init())
 
 	schema := &spec.Schema{
-		Type:        "object",
+		Type:        spec.NewSchemaType("object"),
 		Description: "A user object",
 	}
 
@@ -292,7 +292,7 @@ func TestManagerSaveAndLoadSchema(t *testing.T) {
 
 	loaded, err := m.LoadSchema("User")
 	require.NoError(t, err)
-	assert.Equal(t, "object", loaded.Type)
+	assert.Equal(t, "object", loaded.Type.Value())
 	assert.Equal(t, "A user object", loaded.Description)
 }
 
@@ -311,8 +311,8 @@ func TestManagerLoadAllSchemas(t *testing.T) {
 	m := NewManager(tmpDir)
 	require.NoError(t, m.Init())
 
-	require.NoError(t, m.SaveSchema("User", &spec.Schema{Type: "object"}))
-	require.NoError(t, m.SaveSchema("Post", &spec.Schema{Type: "object"}))
+	require.NoError(t, m.SaveSchema("User", &spec.Schema{Type: spec.NewSchemaType("object")}))
+	require.NoError(t, m.SaveSchema("Post", &spec.Schema{Type: spec.NewSchemaType("object")}))
 
 	schemas, err := m.LoadAllSchemas()
 
@@ -361,7 +361,7 @@ func TestManagerDeleteSchema(t *testing.T) {
 	tmpDir := t.TempDir()
 	m := NewManager(tmpDir)
 	require.NoError(t, m.Init())
-	require.NoError(t, m.SaveSchema("User", &spec.Schema{Type: "object"}))
+	require.NoError(t, m.SaveSchema("User", &spec.Schema{Type: spec.NewSchemaType("object")}))
 
 	err := m.DeleteSchema("User")
 	require.NoError(t, err)

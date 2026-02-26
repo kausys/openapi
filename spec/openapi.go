@@ -2,7 +2,7 @@ package spec
 
 // This is the root object of the OpenAPI Description.
 //
-// See: https://spec.openapis.org/oas/v3.0.4.html#openapi-object
+// See: https://spec.openapis.org/oas/v3.1.1.html#openapi-object
 type OpenAPI struct {
 	// REQUIRED. This string MUST be the version number of the OpenAPI Specification that the OpenAPI
 	// Document uses. The openapi field SHOULD be used by tooling to interpret the OpenAPI Document.
@@ -10,12 +10,19 @@ type OpenAPI struct {
 	OpenAPI string `json:"openapi" yaml:"openapi"`
 	// REQUIRED. Provides metadata about the API. The metadata MAY be used by tooling as required.
 	Info *Info `json:"info,omitempty" yaml:"info,omitempty"`
+	// The default value for the $schema keyword within Schema Objects contained within this OAS
+	// document. This MUST be in the form of a URI.
+	JSONSchemaDialect string `json:"jsonSchemaDialect,omitempty" yaml:"jsonSchemaDialect,omitempty"`
 	// An array of Server Objects, which provide connectivity information to a target server. If the
 	// servers field is not provided, or is an empty array, the default value would be a Server Object
 	// with a url value of /.
 	Servers []*Server `json:"servers,omitempty" yaml:"servers,omitempty"`
 	// REQUIRED. The available paths and operations for the API.
 	Paths *Paths `json:"paths,omitempty" yaml:"paths,omitempty"`
+	// The incoming webhooks that MAY be received as part of this API and that the API consumer MAY
+	// choose to implement. A map of webhook name to PathItem Object describing the request that may
+	// be initiated by the API provider.
+	Webhooks map[string]*PathItem `json:"webhooks,omitempty" yaml:"webhooks,omitempty"`
 	// An element to hold various Objects for the OpenAPI Description.
 	Components *Components `json:"components,omitempty" yaml:"components,omitempty"`
 	// A declaration of which security mechanisms can be used across the API. The list of values includes

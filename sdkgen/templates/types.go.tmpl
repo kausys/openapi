@@ -6,6 +6,9 @@ import "{{.ModulePath}}/models"
 
 type (
 {{- range .Models}}
+{{- range .TypeAliases}}
+	{{.Name}} = models.{{.Name}}
+{{- end}}
 {{- range .Structs}}
 	{{.Name}} = models.{{.Name}}
 {{- end}}

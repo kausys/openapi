@@ -23,7 +23,7 @@ func (g *Generator) routeToOperation(r *scanner.RouteInfo) *spec.Operation {
 			schema := g.typeToSchema(resp.Type)
 			if resp.IsArray {
 				schema = &spec.Schema{
-					Type:  scanner.TypeArray,
+					Type:  spec.NewSchemaType(scanner.TypeArray),
 					Items: schema,
 				}
 			}

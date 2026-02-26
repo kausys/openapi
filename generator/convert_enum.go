@@ -23,7 +23,7 @@ func (g *Generator) enumToSchema(e *scanner.EnumInfo) *spec.Schema {
 
 	// Add example if available
 	if e.Example != nil {
-		schema.Example = e.Example
+		schema.Examples = []any{e.Example}
 	}
 
 	return schema
@@ -56,7 +56,7 @@ func (g *Generator) createInlineEnumSchema(e *scanner.EnumInfo) *spec.Schema {
 	}
 
 	if e.Example != nil {
-		schema.Example = e.Example
+		schema.Examples = []any{e.Example}
 	}
 
 	return schema

@@ -132,13 +132,13 @@ func (g *Generator) structToSchema(s *scanner.StructInfo) *spec.Schema {
 	switch s.UnderlyingKind {
 	case scanner.KindArray:
 		return &spec.Schema{
-			Type:        scanner.TypeArray,
+			Type:        spec.NewSchemaType(scanner.TypeArray),
 			Description: s.Description,
 			Items:       g.typeToSchema(s.ElementType),
 		}
 	case scanner.KindMap:
 		return &spec.Schema{
-			Type:                 scanner.TypeObject,
+			Type:                 spec.NewSchemaType(scanner.TypeObject),
 			Description:          s.Description,
 			AdditionalProperties: g.typeToSchema(s.ElementType),
 		}
@@ -151,7 +151,7 @@ func (g *Generator) structToSchema(s *scanner.StructInfo) *spec.Schema {
 	}
 
 	schema := &spec.Schema{
-		Type:        scanner.TypeObject,
+		Type:        spec.NewSchemaType(scanner.TypeObject),
 		Description: s.Description,
 		Properties:  make(map[string]*spec.Schema),
 	}
@@ -231,10 +231,10 @@ func (g *Generator) typeToSchema(typeName string) *spec.Schema {
 func (g *Generator) setSchemaType(schema *spec.Schema, goType string) {
 	// Check for registered custom types first
 	if typeInfo := GetCustomType(goType); typeInfo != nil {
-		schema.Type = typeInfo.Type
+		schema.Type = spec.NewSchemaType(typeInfo.Type)
 		schema.Format = typeInfo.Format
-		if typeInfo.Example != nil && schema.Example == nil {
-			schema.Example = typeInfo.Example
+		if typeInfo.Example != nil && len(schema.Examples) == 0 {
+			schema.Examples = []any{typeInfo.Example}
 		}
 		if typeInfo.Default != nil && schema.Default == nil {
 			schema.Default = typeInfo.Default
@@ -249,29 +249,29 @@ func (g *Generator) setSchemaType(schema *spec.Schema, goType string) {
 
 	switch goType {
 	case "string":
-		schema.Type = scanner.TypeString
+		schema.Type = spec.NewSchemaType(scanner.TypeString)
 	case "int", "int8", "int16", "int32":
-		schema.Type = scanner.TypeInteger
+		schema.Type = spec.NewSchemaType(scanner.TypeInteger)
 		schema.Format = scanner.FormatInt32
 	case "int64":
-		schema.Type = scanner.TypeInteger
+		schema.Type = spec.NewSchemaType(scanner.TypeInteger)
 		schema.Format = scanner.FormatInt64
 	case "uint", "uint8", "uint16", "uint32":
-		schema.Type = scanner.TypeInteger
+		schema.Type = spec.NewSchemaType(scanner.TypeInteger)
 		schema.Format = scanner.FormatInt32
 	case "uint64":
-		schema.Type = scanner.TypeInteger
+		schema.Type = spec.NewSchemaType(scanner.TypeInteger)
 		schema.Format = scanner.FormatInt64
 	case "float32":
-		schema.Type = scanner.TypeNumber
+		schema.Type = spec.NewSchemaType(scanner.TypeNumber)
 		schema.Format = scanner.FormatFloat
 	case "float64":
-		schema.Type = scanner.TypeNumber
+		schema.Type = spec.NewSchemaType(scanner.TypeNumber)
 		schema.Format = scanner.FormatDouble
 	case "bool":
-		schema.Type = scanner.TypeBoolean
+		schema.Type = spec.NewSchemaType(scanner.TypeBoolean)
 	case "any", "interface{}":
-		schema.Type = scanner.TypeObject
+		schema.Type = spec.NewSchemaType(scanner.TypeObject)
 	default:
 		// Check for package-qualified types
 		short := shortTypeName(goType)
@@ -281,14 +281,14 @@ func (g *Generator) setSchemaType(schema *spec.Schema, goType string) {
 				return
 			}
 		}
-		schema.Type = scanner.TypeString
+		schema.Type = spec.NewSchemaType(scanner.TypeString)
 	}
 }
 
 // castToSchemaType converts a string value to the appropriate Go type
 // based on the OpenAPI schema type, so YAML serialization produces the correct type.
-func castToSchemaType(value, schemaType string) any {
-	switch schemaType {
+func castToSchemaType(value string, schemaType spec.SchemaType) any {
+	switch schemaType.Value() {
 	case scanner.TypeInteger:
 		if v, err := strconv.ParseInt(value, 10, 64); err == nil {
 			return v

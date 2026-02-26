@@ -17,8 +17,8 @@ var (
 
 var rootCmd = &cobra.Command{
 	Use:   "openapi",
-	Short: "OpenAPI 3.0.4 specification generator for Go",
-	Long: `OpenAPI is a tool that generates OpenAPI 3.0.4 specifications from Go source code.
+	Short: "OpenAPI 3.1 specification generator for Go",
+	Long: `OpenAPI is a tool that generates OpenAPI 3.1 specifications from Go source code.
 
 It scans your Go code for swagger directives and generates a complete OpenAPI specification
 in YAML or JSON format.

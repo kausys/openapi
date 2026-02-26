@@ -4,7 +4,7 @@ package spec
 // All objects defined within the Components Object will have no effect on the API unless they are
 // explicitly referenced from outside the Components Object.
 //
-// See: https://spec.openapis.org/oas/v3.0.4.html#components-object
+// See: https://spec.openapis.org/oas/v3.1.1.html#components-object
 type Components struct {
 	// An object to hold reusable Schema Objects.
 	Schemas map[string]*Schema `json:"schemas,omitempty" yaml:"schemas,omitempty"`
@@ -24,4 +24,6 @@ type Components struct {
 	Links map[string]*Link `json:"links,omitempty" yaml:"links,omitempty"`
 	// An object to hold reusable Callback Objects.
 	Callbacks map[string]*Callback `json:"callbacks,omitempty" yaml:"callbacks,omitempty"`
+	// An object to hold reusable Path Item Objects.
+	PathItems map[string]*PathItem `json:"pathItems,omitempty" yaml:"pathItems,omitempty"`
 }

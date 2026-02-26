@@ -98,14 +98,14 @@ func (s *{{$.Service.Name}}Service) {{.Name}}(ctx context.Context{{range .PathPa
 			zap.Any("response", data.Value()),
 {{- if .UseParamsStruct}}
 {{- range .PathParams}}
-			zap.String("{{.Name}}", params.{{.GoName | pascal}}),
+			{{. | zapFieldStruct}},
 {{- end}}
 {{- range .QueryParams}}
 			zap.Any("{{.Name}}", params.{{.GoName | pascal}}),
 {{- end}}
 {{- else}}
 {{- range .PathParams}}
-			zap.String("{{.Name}}", {{.GoName}}),
+			{{. | zapField}},
 {{- end}}
 {{- range .QueryParams}}
 			zap.Any("{{.Name}}", {{.GoName}}),
@@ -133,6 +133,7 @@ func (s *{{$.Service.Name}}Service) {{.Name}}(ctx context.Context{{range .PathPa
 	}
 
 	{{- if isSlice .ResponseType}}
+	{{- if not (isPrimitiveSlice .ResponseType)}}
 	{{- if .ResponseWrapper}}
 	items := data.Get("{{.ResponseWrapper}}").Array()
 	{{- else}}
@@ -143,6 +144,7 @@ func (s *{{$.Service.Name}}Service) {{.Name}}(ctx context.Context{{range .PathPa
 			result[i].Raw = items[i].Raw
 		}
 	}
+	{{- end}}
 	{{- else}}
 	result.Raw = raw
 	{{- end}}
