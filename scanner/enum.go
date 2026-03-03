@@ -4,12 +4,14 @@ import (
 	"go/ast"
 	"go/token"
 	"strconv"
+
+	"golang.org/x/tools/go/packages"
 )
 
 // processEnums processes swagger:enum directives in two passes:
 // 1. First pass: register enum type declarations
 // 2. Second pass: process const declarations to extract enum values
-func (s *Scanner) processEnums(filePath string, file *ast.File) error {
+func (s *Scanner) processEnums(filePath string, file *ast.File, pkg *packages.Package) error {
 	// First pass: process enum type declarations
 	for _, decl := range file.Decls {
 		genDecl, ok := decl.(*ast.GenDecl)
@@ -36,6 +38,9 @@ func (s *Scanner) processEnums(filePath string, file *ast.File) error {
 			if enumInfo != nil {
 				s.Enums[enumInfo.TypeName] = enumInfo
 				s.TypeToEnum[typeSpec.Name.Name] = enumInfo.TypeName
+				if pkg != nil && pkg.Types != nil {
+					s.TypeToEnum[pkg.Types.Name()+"."+typeSpec.Name.Name] = enumInfo.TypeName
+				}
 				s.EnumSources[enumInfo.TypeName] = filePath
 			}
 		}

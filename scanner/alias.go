@@ -59,6 +59,11 @@ func (s *Scanner) processTypeAliases(filePath string, file *ast.File, pkg *packa
 
 // resolveOriginalType extracts the original type name from a types.Type.
 func (s *Scanner) resolveOriginalType(t types.Type) string {
+	// Handle type aliases (Go 1.22+)
+	if alias, ok := t.(*types.Alias); ok {
+		return s.resolveOriginalType(types.Unalias(alias))
+	}
+
 	// Handle named types
 	if named, ok := t.(*types.Named); ok {
 		obj := named.Obj()
@@ -80,24 +85,31 @@ func (s *Scanner) resolveOriginalType(t types.Type) string {
 // ResolveTypeAlias resolves a type name to its original type if it's an alias.
 // Returns the original type name, or the input if it's not an alias.
 func (s *Scanner) ResolveTypeAlias(typeName string) string {
-	return s.resolveTypeAliasWithVisited(typeName, make(map[string]bool))
+	return s.resolveTypeAlias(typeName, make(map[string]bool), true)
 }
 
-// resolveTypeAliasWithVisited resolves type aliases with cycle detection.
-func (s *Scanner) resolveTypeAliasWithVisited(typeName string, visited map[string]bool) string {
+// resolveTypeAlias resolves type aliases with cycle detection.
+// Short-name fallback (stripping package prefix) is only allowed on the initial
+// call to handle import alias mismatches. During chain resolution it is disabled
+// to prevent colliding short names from redirecting to the wrong package
+// (e.g., "trade.TransactionType" incorrectly resolved via short "TransactionType"
+// alias to "transaction.TransactionType").
+func (s *Scanner) resolveTypeAlias(typeName string, visited map[string]bool, allowShortName bool) string {
 	if visited[typeName] {
 		return typeName // cycle detected
 	}
 	visited[typeName] = true
 
 	if original, ok := s.TypeAliases[typeName]; ok {
-		return s.resolveTypeAliasWithVisited(original, visited)
+		return s.resolveTypeAlias(original, visited, false)
 	}
 
-	if idx := strings.LastIndex(typeName, "."); idx >= 0 {
-		shortName := typeName[idx+1:]
-		if original, ok := s.TypeAliases[shortName]; ok {
-			return s.resolveTypeAliasWithVisited(original, visited)
+	if allowShortName {
+		if idx := strings.LastIndex(typeName, "."); idx >= 0 {
+			shortName := typeName[idx+1:]
+			if original, ok := s.TypeAliases[shortName]; ok {
+				return s.resolveTypeAlias(original, visited, false)
+			}
 		}
 	}
 

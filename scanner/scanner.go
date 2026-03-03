@@ -223,7 +223,7 @@ func (s *Scanner) processFile(filePath string, file *ast.File, pkg *packages.Pac
 	}
 
 	// Process enums
-	if err := s.processEnums(filePath, file); err != nil {
+	if err := s.processEnums(filePath, file, pkg); err != nil {
 		return err
 	}
 
@@ -405,5 +405,7 @@ func (s *Scanner) setFieldTypeFromTypesType(fieldInfo *FieldInfo, t types.Type) 
 			fieldInfo.MapKeyType = basic.Name()
 		}
 		s.setFieldTypeFromTypesType(fieldInfo, typ.Elem())
+	case *types.Alias:
+		s.setFieldTypeFromTypesType(fieldInfo, types.Unalias(typ))
 	}
 }
